@@ -1,0 +1,44 @@
+# Environment files and secrets
+.env
+.env.*
+*.env
+*.env.*
+.envrc
+.npmrc
+.pypirc
+secrets/
+.secrets/
+credentials/
+credentials*.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+.aws/
+.ssh/
+
+# Dependencies, caches and builds
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.nuxt/
+.cache/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local artifacts
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+tmp/
+temp/

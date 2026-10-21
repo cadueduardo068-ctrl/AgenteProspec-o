@@ -23,6 +23,7 @@ import { metrics } from '@/lib/metrics';
 import { integrations, integrationRoute } from '@/lib/integrations';
 import { allowedOrigin } from '@/lib/origin';
 import { localities } from '@/lib/localities';
+import { generateSitePrompt, saveSitePrompt, startPromptDemo } from '@/lib/site-prompts';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const json = (data: unknown, status = 200) =>
@@ -69,6 +70,14 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
       return json({ error: 'Entre para continuar.' }, 401);
     await rateLimit('admin-api', 300, 60_000);
     const db = store();
+    if (route === 'site-prompts/generate' && method === 'POST')
+      return json(await generateSitePrompt(db, await body(req)));
+    if (route === 'site-prompts' && method === 'POST') {
+      const input = await body(req);
+      return json(await db.mutate((s) => saveSitePrompt(s, input)), 201);
+    }
+    if (parts[0] === 'site-prompts' && parts[1] && parts[2] === 'start' && method === 'POST')
+      return json(await db.mutate((s) => startPromptDemo(s, parts[1])));
     if (route === 'localities/states' && method === 'GET')
       return json({ states: await localities().states() });
     if (route === 'localities/cities' && method === 'GET')
@@ -115,6 +124,7 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
           s.analyses = s.analyses.filter((a) => a.companyId !== id);
           s.jobs = s.jobs.filter((j) => j.companyId !== id);
           s.tasks = s.tasks.filter((t) => t.companyId !== id);
+          s.prompts = s.prompts.filter((p) => p.companyId !== id);
           s.events = s.events.filter((e) => e.companyId !== id);
           event(s, 'Cadastro e histórico removidos por solicitação do administrador');
         });
@@ -151,7 +161,12 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
     }
     if (route === 'tasks' && method === 'POST') {
       const data = z
-        .object({ companyId: z.string().uuid(), title: z.string().trim().min(3).max(300) })
+        .object({
+          companyId: z.string().uuid(),
+          title: z.string().trim().min(3).max(300),
+          description: z.string().trim().max(3000).optional(),
+          dueAt: z.string().datetime().optional(),
+        })
         .parse(await body(req));
       await db.mutate((s) => {
         getCompany(s, data.companyId);
@@ -161,6 +176,7 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
           done: false,
           at: new Date().toISOString(),
         });
+        event(s, `Tarefa criada: ${data.title}`, data.companyId, 'ação do administrador');
       });
       return json({ ok: true });
     }
@@ -169,6 +185,12 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
         const t = s.tasks.find((t) => t.id === parts[1]);
         if (!t) throw new Error('Tarefa não encontrada.');
         t.done = !t.done;
+        event(
+          s,
+          `Tarefa ${t.done ? 'concluída' : 'reaberta'}: ${t.title}`,
+          t.companyId,
+          'ação do administrador',
+        );
       });
       return json({ ok: true });
     }
@@ -181,6 +203,7 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
         analyses: s.analyses,
         messages: s.messages,
         tasks: s.tasks,
+        prompts: s.prompts,
         jobs: s.jobs,
         events: s.events,
       });

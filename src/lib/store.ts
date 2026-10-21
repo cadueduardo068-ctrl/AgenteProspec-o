@@ -78,9 +78,11 @@ export class SupabaseStore implements Store {
     throw new Error('Conflito de concorrência. Tente novamente.');
   }
 }
-const globalStore = globalThis as unknown as { caduStore?: Store };
+const globalStore = globalThis as unknown as { caduStore?: Store; caduSchema?: number };
 export function store(): Store {
-  if (!globalStore.caduStore) {
+  if (!globalStore.caduStore || globalStore.caduSchema !== 3) {
+    const old = globalStore.caduStore as (Store & { close?: () => void }) | undefined;
+    old?.close?.();
     if (process.env.DATABASE_DRIVER === 'supabase') {
       if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY)
         throw new Error('Configure o Supabase antes de iniciar.');
@@ -92,6 +94,7 @@ export function store(): Store {
         path.resolve(process.env.LOCAL_DATA_DIR || '.local', 'cadu.sqlite'),
       );
     }
+    globalStore.caduSchema = 3;
   }
   return globalStore.caduStore;
 }

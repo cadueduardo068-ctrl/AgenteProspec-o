@@ -11,6 +11,7 @@ import {
 import { getCompany, draftApproach, optOut } from './crm';
 import type { Store } from './store';
 import { createHash } from 'node:crypto';
+import { brazilianPhone } from './phones';
 export const phoneHash = (phone: string) => createHash('sha256').update(phone).digest('hex');
 
 export function prepareContact(s: State, id: string, text?: string) {
@@ -18,12 +19,14 @@ export function prepareContact(s: State, id: string, text?: string) {
   if (c.optedOut || c.archived || s.exclusions.includes(c.phone))
     throw new Error('Empresa bloqueada ou arquivada.');
   c.draft = text?.trim() || draftApproach(c);
-  c.stage = 'Abordagem preparada';
+  if (['Empresa encontrada', 'Oportunidade qualificada', 'Abordagem preparada'].includes(c.stage))
+    c.stage = 'Abordagem preparada';
   event(s, `${c.name}: abordagem preparada para revisão`, c.id, 'revisão manual');
   return c.draft;
 }
 export function openContact(s: State, id: string, now = new Date()) {
   const c = getCompany(s, id);
+  const phone = brazilianPhone(c.phone);
   const day = dayInSaoPaulo(now);
   if (s.settings.paused) throw new Error('Contatos suspensos nas configurações.');
   if (!c.phone || !c.consent || c.consent.phone !== c.phone)
@@ -50,7 +53,9 @@ export function openContact(s: State, id: string, now = new Date()) {
     throw new Error('Primeiro contato já registrado. Use o acompanhamento da conversa.');
   if (initialContacts(s, day) >= s.settings.dailyLimit)
     throw new Error('Limite diário de novos contatos atingido.');
-  const pending = s.contacts.filter((item) => item.status === 'aberto' && item.day === day).length;
+  const pending = s.contacts.filter(
+    (item) => item.status === 'aberto' && item.day === day && item.kind !== 'followup',
+  ).length;
   if (!existing && initialContacts(s, day) + pending >= s.settings.dailyLimit)
     throw new Error(
       'Todas as vagas estão confirmadas ou aguardando confirmação. Confirme ou cancele os contatos pendentes.',
@@ -62,9 +67,11 @@ export function openContact(s: State, id: string, now = new Date()) {
     text: c.draft,
     status: 'aberto' as const,
     day,
+    kind: 'initial' as const,
     openedAt: now.toISOString(),
   };
   if (!existing) s.contacts.push(contact);
+  else contact.text = c.draft;
   c.stage = 'WhatsApp aberto';
   event(
     s,
@@ -74,7 +81,7 @@ export function openContact(s: State, id: string, now = new Date()) {
   );
   return {
     contactId: contact.id,
-    url: `https://wa.me/${c.phone}?text=${encodeURIComponent(contact.text)}`,
+    url: `https://wa.me/${phone}?text=${encodeURIComponent(contact.text)}`,
   };
 }
 export function confirmContact(s: State, id: string, now = new Date()) {
@@ -96,6 +103,13 @@ export function confirmContact(s: State, id: string, now = new Date()) {
     throw new Error(
       'Abertura de outro dia. Registre o acompanhamento sem alterar o contador de hoje.',
     );
+  if (contact.kind === 'followup') {
+    contact.status = 'confirmado';
+    contact.confirmedAt = now.toISOString();
+    c.lastContactAt = contact.confirmedAt;
+    event(s, `${c.name}: mensagem de acompanhamento confirmada`, c.id, 'confirmação manual');
+    return contact;
+  }
   if (initialContacts(s, day) >= s.settings.dailyLimit) throw new Error('Limite diário atingido.');
   if (
     s.contactLedger.some(
@@ -123,8 +137,54 @@ export function cancelContact(s: State, id: string) {
     throw new Error('Não há abertura pendente para cancelar.');
   contact.status = 'cancelado';
   const c = getCompany(s, contact.companyId);
-  if (!c.optedOut) c.stage = 'Abordagem preparada';
+  if (!c.optedOut && contact.kind !== 'followup') c.stage = 'Abordagem preparada';
   event(s, `${c.name}: administrador informou que não enviou`, c.id, 'confirmação manual');
+}
+export function openFollowup(s: State, id: string, now = new Date()) {
+  const c = getCompany(s, id);
+  const phone = brazilianPhone(c.phone);
+  if (
+    c.optedOut ||
+    c.archived ||
+    s.settings.paused ||
+    s.exclusions.includes(phone) ||
+    !c.consent ||
+    c.consent.phone !== phone
+  )
+    throw new Error('Acompanhamento bloqueado: confira autorização, exclusão e suspensão.');
+  if (
+    !s.contactLedger.some(
+      (item) => item.phoneHash === phoneHash(phone) && item.status === 'confirmed',
+    )
+  )
+    throw new Error('Confirme o primeiro contato antes de registrar acompanhamento.');
+  if (!c.draft) throw new Error('Revise a mensagem antes de abrir.');
+  let contact = s.contacts.find(
+    (item) => item.companyId === id && item.status === 'aberto' && item.day === dayInSaoPaulo(now),
+  );
+  if (!contact) {
+    contact = {
+      id: crypto.randomUUID(),
+      companyId: id,
+      phone,
+      text: c.draft,
+      status: 'aberto',
+      openedAt: now.toISOString(),
+      day: dayInSaoPaulo(now),
+      kind: 'followup',
+    };
+    s.contacts.push(contact);
+  } else contact.text = c.draft;
+  event(
+    s,
+    `${c.name}: acompanhamento aberto no WhatsApp; envio não confirmado`,
+    id,
+    'ação do administrador',
+  );
+  return {
+    contactId: contact.id,
+    url: `https://wa.me/${phone}?text=${encodeURIComponent(contact.text)}`,
+  };
 }
 const analysisInput = z.object({
   companyId: z.string().uuid(),

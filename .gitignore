@@ -26,6 +26,7 @@ build/
 coverage/
 .next/
 .next-e2e/
+.next-qa/
 .nuxt/
 .cache/
 .venv/

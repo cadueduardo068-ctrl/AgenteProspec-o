@@ -26,6 +26,7 @@ export type Company = {
   phone: string;
   website: string;
   source: string;
+  address?: string;
   verified: boolean;
   services: string;
   stage: Stage;
@@ -37,6 +38,7 @@ export type Company = {
   human: boolean;
   archived?: boolean;
   draft?: string;
+  draftMeta?: { purpose: string; method: 'template' | 'openai'; at: string };
   lastContactAt?: string;
   followup?: 'desconhecido' | 'aguardando resposta' | 'resposta recebida' | 'sem resposta';
 };
@@ -80,7 +82,15 @@ export type Job = {
   approvedAt?: string;
   brief?: Record<string, string>;
 };
-export type Task = { id: string; companyId: string; title: string; done: boolean; at: string };
+export type Task = {
+  id: string;
+  companyId: string;
+  title: string;
+  done: boolean;
+  at: string;
+  dueAt?: string;
+  description?: string;
+};
 export type ManualContact = {
   id: string;
   companyId: string;
@@ -90,6 +100,7 @@ export type ManualContact = {
   openedAt: string;
   confirmedAt?: string;
   day: string;
+  kind?: 'initial' | 'followup';
 };
 export type Analysis = {
   id: string;
@@ -107,6 +118,7 @@ export type Analysis = {
   rawText?: string;
 };
 export type State = {
+  prompts: SitePrompt[];
   recentCities: { id: number; name: string; uf: string }[];
   companies: Company[];
   messages: Message[];
@@ -135,6 +147,7 @@ export type State = {
   rateLimits: Record<string, { start: number; count: number }>;
 };
 export const initialState = (): State => ({
+  prompts: [],
   recentCities: [],
   companies: [],
   messages: [],
@@ -156,6 +169,16 @@ export const initialState = (): State => ({
   usage: [],
   rateLimits: {},
 });
+export type SitePrompt = {
+  id: string;
+  companyId: string;
+  text: string;
+  method: 'template' | 'openai';
+  plan: 'landing page' | 'site institucional';
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+};
 export function normalizeState(saved: Partial<State>): State {
   return {
     ...initialState(),
@@ -181,9 +204,12 @@ export function score(
   company: Pick<Company, 'website' | 'phone' | 'niche' | 'services' | 'verified'>,
 ) {
   const reasons: { label: string; points: number }[] = [];
-  if (!company.website)
+  if (websitePresence(company.website) !== 'website')
     reasons.push({
-      label: 'Site ainda não identificado; precisa de verificação adicional',
+      label:
+        websitePresence(company.website) === 'social'
+          ? 'Canal social identificado; site próprio ainda não confirmado'
+          : 'Site ainda não identificado; precisa de verificação adicional',
       points: 35,
     });
   if (company.phone)
@@ -204,6 +230,28 @@ export function score(
     reasons,
   };
 }
+export function websitePresence(value: string): 'none' | 'social' | 'website' {
+  if (!value) return 'none';
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+    return [
+      'instagram.com',
+      'facebook.com',
+      'fb.com',
+      'wa.me',
+      'api.whatsapp.com',
+      'tiktok.com',
+      'linktr.ee',
+      'youtube.com',
+      'x.com',
+      'twitter.com',
+    ].some((s) => host === s || host.endsWith(`.${s}`))
+      ? 'social'
+      : 'website';
+  } catch {
+    return 'none';
+  }
+}
 export function intent(text: string) {
   if (
     /\b(não quero|nao quero|não tenho interesse|nao tenho interesse|não estou interessad|nao estou interessad|não preciso|nao preciso|pare|parar|remover|sair|cancelar|sem interesse|não autorizo|nao autorizo|stop)/i.test(
@@ -218,11 +266,14 @@ export function intent(text: string) {
   return 'informações';
 }
 export function event(state: State, title: string, companyId?: string, source = 'CADU AI') {
+  const at = new Date().toISOString();
+  const company = state.companies.find((c) => c.id === companyId);
+  if (company) company.updatedAt = at;
   state.events.unshift({
     id: crypto.randomUUID(),
     title,
     companyId,
-    at: new Date().toISOString(),
+    at,
     source,
   });
 }

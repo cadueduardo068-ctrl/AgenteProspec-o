@@ -38,6 +38,16 @@ O orçamento interno limita quantidade de requisições por dia, incluindo tenta
 
 ## Operação e pendências
 
+### Evolução de municípios e acompanhamento
+
+Localidades vêm da API oficial do [IBGE](https://servicodados.ibge.gov.br/api/docs/localidades), com cache de 24 horas e uso da última lista oficial disponível se a API ficar indisponível. Nenhum nome é criado pelo sistema. Recentes são persistidos no banco. O backend valida correspondência entre ID, nome e UF antes de uma busca real.
+
+Resultados temporários agora têm ações diretas para o fluxo comercial, mas dados permanentes ainda exigem verificação independente. Campos sugeridos precisam ser revisados e confirmados pelo administrador. O sistema não deduz WhatsApp ativo apenas por haver telefone.
+
+O perfil tem URL protegida própria. Notas são salvas com debounce de 700ms e no blur, com flush ao voltar pelo perfil e indicação de erro; o navegador avisa se houver notas pendentes antes de sair. Tarefas guardam instante UTC e são exibidas no fuso local. Não há lembrete automático. Recusas continuam prevalecendo sobre alterações de etapa.
+
+Mensagens e prompts podem ser preparados por modelos locais identificados ou pela OpenAI configurada. Prompts gerados ainda são rascunhos: só entram no histórico após salvar. Revisões preservam versões anteriores; marcar início gera uma tarefa de execução manual, sem criar um site fictício. O histórico de prompts é removido com o cadastro e incluído na exportação privada.
+
 Sem chaves, CRM, fila, contadores, análises locais, importação, tarefas, relatórios e fila de geração funcionam. Google/Brave/Meta/OpenAI/Supabase e execução de geração precisam de configuração e testes na conta real. Não existe verificação automática de qualidade de sites, leitura de faturas, envio sem revisão ou publicação de clientes. O status de integração configurada indica presença de variáveis; não representa teste bem-sucedido.
 
 Backups: configure snapshots criptografados do volume SQLite (use a API de backup ou pare o serviço antes da cópia; WAL deve ser considerado). No Supabase, habilite backups e PITR conforme seu plano, teste restauração em ambiente separado. Exporte dados do CRM pelo painel quando necessário. A exportação não substitui um backup de recuperação. Defina política de retenção e faça revisão periódica de análises e eventos.

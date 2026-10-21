@@ -78,25 +78,32 @@ async function execute(job: Job & { brief: Record<string, string> }) {
   }
   throw new Error('Tempo de geração esgotado ou worker interrompido.');
 }
-while (!stopping) {
-  try {
-    const { job } = await app('claim', {});
-    if (!job) {
-      await new Promise((r) => setTimeout(r, 5000));
-      continue;
-    }
-    console.log(JSON.stringify({ level: 'info', event: 'generation_claimed', jobId: job.id }));
+async function main() {
+  while (!stopping) {
     try {
-      await execute(job);
+      const { job } = await app('claim', {});
+      if (!job) {
+        await new Promise((r) => setTimeout(r, 5000));
+        continue;
+      }
+      console.log(JSON.stringify({ level: 'info', event: 'generation_claimed', jobId: job.id }));
+      try {
+        await execute(job);
+      } catch {
+        await app('callback', {
+          id: job.id,
+          status: 'Falhou',
+          error:
+            'Geração interrompida. Revise o provedor isolado antes de solicitar nova tentativa.',
+        });
+      }
     } catch {
-      await app('callback', {
-        id: job.id,
-        status: 'Falhou',
-        error: 'Geração interrompida. Revise o provedor isolado antes de solicitar nova tentativa.',
-      });
+      console.error(JSON.stringify({ level: 'error', event: 'worker_request_failed' }));
+      await new Promise((r) => setTimeout(r, 5000));
     }
-  } catch {
-    console.error(JSON.stringify({ level: 'error', event: 'worker_request_failed' }));
-    await new Promise((r) => setTimeout(r, 5000));
   }
 }
+void main().catch(() => {
+  console.error(JSON.stringify({ level: 'error', event: 'worker_stopped' }));
+  process.exitCode = 1;
+});

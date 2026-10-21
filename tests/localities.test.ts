@@ -22,7 +22,7 @@ test('IBGE carrega estados e municípios, compartilha requisições e valida sel
   assert.equal((await service.validate('SP', 'sao paulo', 3550308)).name, 'São Paulo');
   await assert.rejects(service.validate('SP', 'Cidade inventada'), /município válido/);
   await assert.rejects(service.validate('SP', 'Bauru', 3550308), /município válido/);
-  assert.throws(()=>service.cities('../invalid'));
+  assert.throws(() => service.cities('../invalid'));
 });
 test('IBGE indisponível não gera cidades fictícias', async () => {
   const service = new LocalityService(async () => {

@@ -59,6 +59,11 @@ import type { metrics } from '@/lib/metrics';
 import type { integrations } from '@/lib/integrations';
 import NicheSelector from './niche-selector';
 import CitySelector from './city-selector';
+import ContactComposer from './contact-composer';
+import SitePromptEditor from './site-prompt-editor';
+import CompanyProfile from './company-profile';
+import ContactedCompanies from './contacted-companies';
+import ResultCards, { type ResultAction, type PlaceResult } from './result-cards';
 import type { Municipality } from '@/lib/localities';
 
 type Data = Omit<State, 'exclusions' | 'webhookIds' | 'rateLimits'> & {
@@ -80,6 +85,7 @@ const nav = [
   { id: 'companies', title: 'Empresas encontradas', icon: Building2 },
   { id: 'opportunities', title: 'Oportunidades', icon: Sparkles },
   { id: 'queue', title: 'Fila de contatos', icon: ListTodo },
+  { id: 'contacted', title: 'Empresas contatadas', icon: Users },
   { id: 'assistant', title: 'Assistente Comercial', icon: MessagesSquare },
   { id: 'sites', title: 'Sites gerados', icon: PanelsTopLeft },
   { id: 'funnel', title: 'Funil de vendas', icon: GitBranch },
@@ -176,14 +182,30 @@ function Modal({
     </div>
   );
 }
-export default function Dashboard() {
-  const [tab, setTab] = useState('overview');
+export default function Dashboard({ initialCompanyId }: { initialCompanyId?: string }) {
+  const [tab, setTab] = useState(initialCompanyId ? 'contacted' : 'overview');
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [sidebar, setSidebar] = useState(false);
-  const [selected, select] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialCompanyId || null);
+  function select(id: string | null) {
+    setSelected(id);
+    window.history.pushState({}, '', id ? `/companies/${id}` : '/');
+  }
+  useEffect(() => {
+    const update = () =>
+      setSelected(
+        window.location.pathname.startsWith('/companies/')
+          ? window.location.pathname.split('/')[2]
+          : null,
+      );
+    window.addEventListener('popstate', update);
+    return () => window.removeEventListener('popstate', update);
+  }, []);
   const [add, setAdd] = useState(false);
+  const [composeId, setComposeId] = useState<string | null>(null);
+  const [promptId, setPromptId] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [noSite, setNoSite] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -235,6 +257,7 @@ export default function Dashboard() {
   }
   function navigate(id: string) {
     setTab(id);
+    if (selected) select(null);
     setSidebar(false);
     setFilter('');
   }
@@ -382,7 +405,7 @@ export default function Dashboard() {
             <div className="avatar small">C</div>
           </div>
         </header>
-        <main className="content">
+        <main className="content" inert={!!company}>
           <AnimatePresence mode="wait">
             <motion.div
               key={tab}
@@ -414,6 +437,8 @@ export default function Dashboard() {
                             'Priorize com contexto. A pontuação é uma estimativa, não uma promessa.',
                           queue:
                             'Abordagens revisadas, envios humanos e acompanhamento organizado.',
+                          contacted:
+                            'Conversas abertas, respostas e próximos passos em um único lugar.',
                           assistant:
                             'Interprete respostas e aprove os próximos passos com contexto.',
                           sites: 'Da primeira ideia a uma demonstração aprovada por você.',
@@ -454,6 +479,21 @@ export default function Dashboard() {
                     <Prospect
                       ready={data.integrations.places.configured}
                       recentCities={data.recentCities}
+                      companies={data.companies}
+                      createCompany={async (input) => {
+                        const result = await action(
+                          'companies',
+                          'POST',
+                          input,
+                          'Empresa verificada salva no CRM.',
+                        );
+                        return result?.id ? String(result.id) : null;
+                      }}
+                      onCompanyAction={(id, mode) => {
+                        if (mode === 'whatsapp') setComposeId(id);
+                        else if (mode === 'prompt') setPromptId(id);
+                        else select(id);
+                      }}
                       onAdd={() => setAdd(true)}
                       notify={setToast}
                       refresh={refresh}
@@ -606,6 +646,9 @@ export default function Dashboard() {
                       assistant={() => navigate('assistant')}
                     />
                   )}
+                  {tab === 'contacted' && (
+                    <ContactedCompanies data={data} select={select} compose={setComposeId} />
+                  )}
                   {tab === 'assistant' && (
                     <CommercialAssistant
                       data={data}
@@ -660,15 +703,40 @@ export default function Dashboard() {
           busy={busy}
         />
       )}
+      {data && composeId && data.companies.find((c) => c.id === composeId) && (
+        <ContactComposer
+          key={`composer-${composeId}`}
+          company={data.companies.find((c) => c.id === composeId)!}
+          data={data}
+          close={() => setComposeId(null)}
+          action={action}
+          busy={busy}
+          notify={setToast}
+        />
+      )}
+      {data && promptId && data.companies.find((c) => c.id === promptId) && (
+        <SitePromptEditor
+          key={`prompt-${promptId}`}
+          company={data.companies.find((c) => c.id === promptId)!}
+          data={data}
+          close={() => setPromptId(null)}
+          action={action}
+          busy={busy}
+          notify={setToast}
+        />
+      )}
       {company && data && (
-        <CompanyDetail
-          key={company.id}
+        <CompanyProfile
+          key={`profile-${company.id}`}
           company={company}
           data={data}
+          refresh={refresh}
           close={() => select(null)}
           action={action}
           busy={busy}
           notify={setToast}
+          compose={() => setComposeId(company.id)}
+          prompt={() => setPromptId(company.id)}
         />
       )}
       {showActivity && (
@@ -1163,17 +1231,26 @@ function Companies({ companies, select }: { companies: Company[]; select: (v: st
 function Prospect({
   ready,
   recentCities,
+  companies,
+  createCompany,
+  onCompanyAction,
   onAdd,
   notify,
   refresh,
 }: {
   ready: boolean;
   recentCities: Municipality[];
+  companies: Company[];
+  createCompany: (input: unknown) => Promise<string | null>;
+  onCompanyAction: (id: string, mode: ResultAction) => void;
   onAdd: () => void;
   notify: (s: string) => void;
   refresh: () => Promise<void>;
 }) {
   const [niches, setNiches] = useState<string[]>([]);
+  const [candidate, setCandidate] = useState<{ place: PlaceResult; mode: ResultAction } | null>(
+    null,
+  );
   const [location, setLocation] = useState<Municipality | null>({
     id: 3506003,
     name: 'Bauru',
@@ -1345,50 +1422,18 @@ function Prospect({
               text="Experimente outro nicho, cidade ou prioridade."
             />
           ) : (
-            <div className="places-list">
-              {results.map((p) => (
-                <article key={p.id}>
-                  <div>
-                    <h3>{p.displayName?.text}</h3>
-                    <p>{p.formattedAddress}</p>
-                    <p>{p.internationalPhoneNumber || 'Telefone não informado'}</p>
-                    <code>Place ID: {p.id}</code>
-                    {p.attributions?.map((a, i) => (
-                      <a key={i} href={a.providerUri} target="_blank" rel="noreferrer">
-                        {a.provider}
-                      </a>
-                    ))}
-                  </div>
-                  <div className="stack">
-                    <Badge tone={p.websiteUri ? '' : 'cyan'}>
-                      {p.websiteUri ? 'Site informado' : 'Sem site no perfil'}
-                    </Badge>
-                    {p.websiteUri && (
-                      <a className="text-btn" href={p.websiteUri} target="_blank" rel="noreferrer">
-                        Ver site
-                        <ExternalLink size={13} />
-                      </a>
-                    )}
-                    <a
-                      className="text-btn"
-                      href={
-                        p.googleMapsUri ||
-                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.displayName?.text || '')}&query_place_id=${encodeURIComponent(p.id)}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Ver no Google Maps
-                      <ExternalLink size={13} />
-                    </a>
-                    <button className="text-btn" disabled={busy} onClick={() => void verify(p)}>
-                      Pesquisar outras fontes
-                      <Search size={13} />
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <ResultCards
+              places={results}
+              city={city}
+              state={state}
+              busy={busy}
+              verify={verify}
+              onAction={(place, mode) => {
+                const existing = companies.find((c) => c.placeId === place.id);
+                if (existing) onCompanyAction(existing.id, mode);
+                else setCandidate({ place, mode });
+              }}
+            />
           )}
         </section>
       )}
@@ -1405,6 +1450,35 @@ function Prospect({
             </a>
           ))}
         </section>
+      )}
+      {candidate && (
+        <CompanyForm
+          busy={busy}
+          close={() => setCandidate(null)}
+          initial={{
+            placeId: candidate.place.id,
+            name: candidate.place.displayName?.text || '',
+            niche: candidate.place.prospectNiche || niches[0] || '',
+            city,
+            state,
+            phone: candidate.place.internationalPhoneNumber || '',
+            address: candidate.place.formattedAddress || '',
+            website: candidate.place.websiteUri || '',
+          }}
+          save={async (input) => {
+            setBusy(true);
+            try {
+              const id = await createCompany(input);
+              if (id) {
+                const mode = candidate.mode;
+                setCandidate(null);
+                onCompanyAction(id, mode);
+              }
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
       )}
     </>
   );
@@ -2017,10 +2091,12 @@ function CompanyForm({
   close,
   save,
   busy,
+  initial,
 }: {
   close: () => void;
   save: (data: unknown) => Promise<void>;
   busy: boolean;
+  initial?: Partial<Company>;
 }) {
   const [verified, setVerified] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -2034,38 +2110,72 @@ function CompanyForm({
         <div className="notice">
           <ShieldCheck size={19} />
           <span>
-            Digite informações confirmadas em fonte independente ou fornecidas pela própria empresa.
-            Não copie dados do Google Places para armazenamento permanente.
+            Revise os campos sugeridos e confirme cada informação em fonte independente ou fornecida
+            pela própria empresa. Informe a fonte e marque a verificação antes de salvar; nenhum
+            resultado é gravado automaticamente.
           </span>
         </div>
         <label>
           Nome comercial
-          <input name="name" required minLength={2} maxLength={160} />
+          <input name="name" defaultValue={initial?.name} required minLength={2} maxLength={160} />
         </label>
         <div className="form-row">
           <label>
             Segmento
-            <input name="niche" required minLength={2} maxLength={100} />
+            <input
+              name="niche"
+              defaultValue={initial?.niche}
+              required
+              minLength={2}
+              maxLength={100}
+            />
           </label>
           <label>
             Cidade
-            <input name="city" required minLength={2} maxLength={100} />
+            <input
+              name="city"
+              defaultValue={initial?.city}
+              required
+              minLength={2}
+              maxLength={100}
+            />
           </label>
           <label className="state-field">
             UF
-            <input name="state" required minLength={2} maxLength={2} defaultValue="SP" />
+            <input
+              name="state"
+              required
+              minLength={2}
+              maxLength={2}
+              defaultValue={initial?.state || 'SP'}
+            />
           </label>
         </div>
         <div className="form-row">
           <label>
             Telefone internacional
-            <input name="phone" placeholder="+55 14 99999-9999" maxLength={30} />
+            <input
+              name="phone"
+              defaultValue={initial?.phone}
+              placeholder="+55 14 99999-9999"
+              maxLength={30}
+            />
           </label>
           <label>
             Site oficial confirmado
-            <input name="website" type="url" placeholder="https://" maxLength={1000} />
+            <input
+              name="website"
+              defaultValue={initial?.website}
+              type="url"
+              placeholder="https://"
+              maxLength={1000}
+            />
           </label>
         </div>
+        <label>
+          Endereço verificado
+          <input name="address" defaultValue={initial?.address} maxLength={1000} />
+        </label>
         <label>
           Fonte independente de verificação
           <input
@@ -2078,7 +2188,7 @@ function CompanyForm({
         </label>
         <label>
           Place ID (opcional)
-          <input name="placeId" maxLength={300} />
+          <input name="placeId" defaultValue={initial?.placeId} maxLength={300} />
         </label>
         <label>
           Serviços confirmados
@@ -2111,351 +2221,6 @@ type Action = (
   body?: unknown,
   success?: string,
 ) => Promise<Record<string, unknown> | null>;
-function CompanyDetail({
-  company: c,
-  data,
-  close,
-  action,
-  busy,
-  notify,
-}: {
-  company: Company;
-  data: Data;
-  close: () => void;
-  action: Action;
-  busy: boolean;
-  notify: (s: string) => void;
-}) {
-  const [notes, setNotes] = useState(c.notes);
-  const [services, setServices] = useState(c.services);
-  const [evidence, setEvidence] = useState('');
-  const [draft, setDraft] = useState(c.draft || '');
-  const [task, setTask] = useState('');
-  const [confirmation, setConfirmation] = useState<'optout' | 'delete' | null>(null);
-  const s = score(c);
-  return (
-    <Modal title={c.name} close={close} wide>
-      <div className="detail-grid">
-        <section className="stack">
-          <div className="detail-identity">
-            <span className="company-initial large">{c.name.slice(0, 2).toUpperCase()}</span>
-            <div>
-              <Badge tone="blue">{c.niche}</Badge>
-              <p>
-                {c.city}, {c.state}
-              </p>
-            </div>
-          </div>
-          <label>
-            Etapa no funil
-            <select
-              value={c.stage}
-              disabled={busy}
-              onChange={(e) => void action(`companies/${c.id}`, 'PATCH', { stage: e.target.value })}
-            >
-              {stages.map((stage) => (
-                <option key={stage}>{stage}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Acompanhamento registrado
-            <select
-              value={c.followup || 'desconhecido'}
-              disabled={busy}
-              onChange={(e) =>
-                void action(`companies/${c.id}`, 'PATCH', { followup: e.target.value })
-              }
-            >
-              {['desconhecido', 'aguardando resposta', 'resposta recebida', 'sem resposta'].map(
-                (v) => (
-                  <option key={v}>{v}</option>
-                ),
-              )}
-            </select>
-          </label>
-          <div className="detail-facts">
-            <p>
-              <Globe size={15} />
-              {c.website ? (
-                <a href={c.website} target="_blank" rel="noreferrer">
-                  Site confirmado
-                  <ExternalLink size={12} />
-                </a>
-              ) : (
-                'Site não identificado'
-              )}
-            </p>
-            <p>
-              <MessagesSquare size={15} />
-              {c.phone || 'Telefone não informado'}
-            </p>
-            <p>
-              <ShieldCheck size={15} />
-              <a href={c.source} target="_blank" rel="noreferrer">
-                Fonte verificada
-                <ExternalLink size={12} />
-              </a>
-            </p>
-          </div>
-          <label>
-            Serviços confirmados
-            <textarea
-              value={services}
-              maxLength={3000}
-              onChange={(e) => setServices(e.target.value)}
-            />
-          </label>
-          <label>
-            Observações
-            <textarea value={notes} maxLength={10000} onChange={(e) => setNotes(e.target.value)} />
-          </label>
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={() => void action(`companies/${c.id}`, 'PATCH', { notes, services })}
-          >
-            Salvar informações
-          </button>
-          <div className="section-heading">
-            <h3>Tarefas</h3>
-            <ListTodo size={16} />
-          </div>
-          {data.tasks
-            .filter((t) => t.companyId === c.id)
-            .map((t) => (
-              <button
-                className={`task ${t.done ? 'done' : ''}`}
-                key={t.id}
-                onClick={() => void action(`tasks/${t.id}`, 'PATCH')}
-              >
-                {t.done ? <CheckCheck size={16} /> : <Circle size={16} />}
-                <span>{t.title}</span>
-              </button>
-            ))}
-          <form
-            className="inline-form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (await action('tasks', 'POST', { companyId: c.id, title: task })) setTask('');
-            }}
-          >
-            <input
-              required
-              minLength={3}
-              maxLength={300}
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              placeholder="Adicionar tarefa"
-            />
-            <button className="btn" disabled={busy} aria-label="Adicionar tarefa">
-              <Plus size={17} />
-            </button>
-          </form>
-          <button className="text-btn danger" onClick={() => setConfirmation('delete')}>
-            Excluir cadastro e histórico
-          </button>
-        </section>
-        <section className="stack">
-          <div className="score-box">
-            <div>
-              <span>Potencial comercial estimado</span>
-              <strong>
-                {s.value}
-                <small>/100</small>
-              </strong>
-              <Badge tone={s.value >= 70 ? 'green' : 'blue'}>{s.label}</Badge>
-            </div>
-            <Sparkles size={32} />
-          </div>
-          <ul className="score-reasons">
-            {s.reasons.map((r) => (
-              <li key={r.label}>
-                <span>{r.label}</span>
-                <b>+{r.points}</b>
-              </li>
-            ))}
-          </ul>
-          <small className="muted">
-            Critérios transparentes e determinísticos. Não representam probabilidade de compra nem
-            diagnóstico de qualidade do site.
-          </small>
-          <div className="divider" />
-          <h3>Permissão de contato</h3>
-          {c.optedOut ? (
-            <div className="notice error">
-              <Ban size={19} />
-              Contato bloqueado permanentemente por recusa.
-            </div>
-          ) : c.consent ? (
-            <div className="notice green">
-              <ShieldCheck size={19} />
-              <div>
-                <strong>Consentimento registrado</strong>
-                <p>{c.consent.evidence}</p>
-                <small>{date(c.consent.at)}</small>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className="muted">
-                Ter um número público não autoriza mensagens comerciais. Registre a autorização
-                específica para este telefone e finalidade.
-              </p>
-              <label>
-                Evidência de consentimento
-                <textarea
-                  value={evidence}
-                  onChange={(e) => setEvidence(e.target.value)}
-                  minLength={15}
-                  maxLength={2000}
-                  placeholder="Quando, por qual canal e para qual finalidade a pessoa autorizou?"
-                />
-              </label>
-              <button
-                className="btn"
-                disabled={busy || evidence.trim().length < 15 || !c.phone}
-                onClick={() =>
-                  void action(
-                    `companies/${c.id}/consent`,
-                    'POST',
-                    { evidence, confirmed: true },
-                    'Consentimento registrado.',
-                  )
-                }
-              >
-                <ShieldCheck size={16} />
-                Confirmar autorização
-              </button>
-            </>
-          )}
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={async () => {
-              try {
-                const r = await action(
-                  'manual/prepare',
-                  'POST',
-                  { companyId: c.id, ...(draft ? { text: draft } : {}) },
-                  'Abordagem salva na fila de contatos.',
-                );
-                if (r) setDraft(String(r.text));
-              } catch (e) {
-                notify((e as Error).message);
-              }
-            }}
-          >
-            <FileText size={16} />
-            Preparar abordagem
-          </button>
-          {draft && (
-            <div className="draft-box">
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} />
-              <button
-                className="text-btn"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(draft);
-                  notify('Rascunho copiado. Nenhuma mensagem enviada.');
-                }}
-              >
-                <Clipboard size={13} />
-                Copiar rascunho
-              </button>
-              <small>
-                Sem envio automático. Use a Fila de contatos para abrir o WhatsApp pessoal e
-                confirmar o envio.
-              </small>
-            </div>
-          )}
-          <button
-            className="btn primary"
-            disabled={busy || c.optedOut}
-            onClick={() =>
-              void action(
-                'jobs',
-                'POST',
-                { companyId: c.id, confirmed: true },
-                'Geração adicionada à fila. Aguarda um worker configurado.',
-              )
-            }
-          >
-            <Sparkles size={17} />
-            Gerar site com IA
-          </button>
-          <small className="muted">
-            Ao solicitar, você confirma que os serviços foram verificados e que o cliente pediu a
-            demonstração.
-          </small>
-          {!c.optedOut && (
-            <button className="text-btn danger" onClick={() => setConfirmation('optout')}>
-              <Ban size={14} />
-              Registrar recusa e bloquear contato
-            </button>
-          )}
-        </section>
-      </div>
-      <div className="section-heading timeline-heading">
-        <h3>Linha do tempo auditável</h3>
-        <Badge>Data · origem · descrição</Badge>
-      </div>
-      <Activity data={data.events.filter((e) => e.companyId === c.id)} />
-      <button
-        className="btn"
-        disabled={busy}
-        onClick={() =>
-          void action(
-            'manual/archive',
-            'POST',
-            { companyId: c.id },
-            c.archived ? 'Empresa restaurada.' : 'Empresa arquivada.',
-          )
-        }
-      >
-        {c.archived ? 'Restaurar empresa' : 'Arquivar empresa'}
-      </button>
-      {confirmation && (
-        <div className="confirmation notice error">
-          <div>
-            <strong>
-              {confirmation === 'delete'
-                ? 'Excluir dados desta empresa?'
-                : 'Bloquear permanentemente este contato?'}
-            </strong>
-            <p>
-              {confirmation === 'delete'
-                ? 'Histórico, tarefas e projetos serão removidos. A lista de exclusão e o registro mínimo de limite diário serão preservados.'
-                : 'Novos envios serão impedidos. Registre somente uma recusa verdadeira.'}
-            </p>
-            <div className="button-row">
-              <button className="btn" disabled={busy} onClick={() => setConfirmation(null)}>
-                Cancelar
-              </button>
-              <button
-                className="btn danger"
-                disabled={busy}
-                onClick={async () => {
-                  const r = await action(
-                    `companies/${c.id}${confirmation === 'optout' ? '/optout' : ''}`,
-                    confirmation === 'delete' ? 'DELETE' : 'POST',
-                    undefined,
-                    confirmation === 'delete' ? 'Dados removidos.' : 'Contato bloqueado.',
-                  );
-                  if (r) {
-                    setConfirmation(null);
-                    if (confirmation === 'delete') close();
-                  }
-                }}
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Modal>
-  );
-}
 function Sites({
   data,
   action,

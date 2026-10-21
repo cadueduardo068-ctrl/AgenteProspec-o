@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dayInSaoPaulo, event } from './domain';
+import { dayInSaoPaulo, event, websitePresence } from './domain';
 import type { Store } from './store';
 import { localities, type LocalityService } from './localities';
 const nicheName = z.string().trim().min(2).max(100);
@@ -110,7 +110,10 @@ export async function searchPlaces(
     seen.add(p.id);
     return true;
   });
-  const filtered = data.priority === 'no-site' ? unique.filter((p) => !p.websiteUri) : unique;
+  const filtered =
+    data.priority === 'no-site'
+      ? unique.filter((p) => websitePresence(String(p.websiteUri || '')) !== 'website')
+      : unique;
   await db.mutate((s) =>
     event(
       s,

@@ -82,6 +82,39 @@ test(
       });
       assert.equal(create.status, 201);
       const c = await create.json();
+      assert.equal(
+        (await fetch(`${base}/companies/${c.id}`, { headers: { Cookie: cookie } })).status,
+        200,
+      );
+      assert.equal(
+        (
+          await req(`companies/${c.id}`, 'PATCH', {
+            notes: 'Cliente fictício pediu retorno amanhã.',
+          })
+        ).status,
+        200,
+      );
+      assert.equal(
+        (await (await req('state')).json()).companies[0].notes,
+        'Cliente fictício pediu retorno amanhã.',
+      );
+      const commercial = await (
+        await req('commercial/message', 'POST', { companyId: c.id, purpose: 'Primeira abordagem' })
+      ).json();
+      assert.equal(commercial.method, 'template');
+      assert.match(commercial.text, /Empresa fictícia/);
+      assert.equal(
+        (
+          await req('tasks', 'POST', {
+            companyId: c.id,
+            title: 'Acompanhamento fictício com data',
+            description: 'Somente teste HTTP',
+            dueAt: '2026-10-22T13:00:00.000Z',
+          })
+        ).status,
+        200,
+      );
+      assert.equal((await (await req('state')).json()).tasks[0].dueAt, '2026-10-22T13:00:00.000Z');
       assert.equal((await req('manual/open', 'POST', { companyId: c.id })).status, 400);
       assert.equal(
         (
@@ -105,6 +138,25 @@ test(
         200,
       );
       assert.equal((await (await req('state')).json()).metrics.sentToday, 1);
+      const generated = await (
+        await req('site-prompts/generate', 'POST', { companyId: c.id })
+      ).json();
+      assert.equal(generated.method, 'template');
+      assert.match(generated.text, /Bauru/);
+      assert.equal((await (await req('state')).json()).prompts.length, 0);
+      const prompt = await (
+        await req('site-prompts', 'POST', { companyId: c.id, ...generated })
+      ).json();
+      assert.equal((await req(`site-prompts/${prompt.id}/start`, 'POST', {})).status, 200);
+      assert.equal((await req(`site-prompts/${prompt.id}/start`, 'POST', {})).status, 200);
+      assert.equal((await (await req('state')).json()).tasks.length, 2);
+      await req(`companies/${c.id}`, 'PATCH', { stage: 'Envio confirmado' }); // Endpoint cannot forge contact confirmations.
+      const followup = await (await req('manual/followup', 'POST', { companyId: c.id })).json();
+      assert.equal(
+        (await req('manual/confirm', 'POST', { contactId: followup.contactId })).status,
+        200,
+      );
+      assert.equal((await (await req('state')).json()).metrics.contactsToday, 1);
       const analysis = await (
         await req('analyses', 'POST', {
           companyId: c.id,
@@ -115,7 +167,7 @@ test(
       ).json();
       assert.equal(analysis.method, 'rules');
       assert.equal(analysis.rawText, undefined);
-      assert.equal((await (await req('state')).json()).companies[0].stage, 'Envio confirmado');
+      assert.equal((await (await req('state')).json()).companies[0].stage, 'Site em geração');
       assert.equal((await req(`analyses/${analysis.id}`, 'PATCH')).status, 200);
       const jobResponse = await req('jobs', 'POST', { companyId: c.id, confirmed: true });
       assert.equal(jobResponse.status, 201);
@@ -136,12 +188,14 @@ test(
       );
       const state = await (await req('state')).json();
       assert.equal(state.companies[0].stage, 'Site em geração');
-      assert.equal(state.tasks.length, 1);
+      assert.equal(state.tasks.length, 3);
+      assert.equal(state.prompts.length, 1);
       assert.equal(state.contactLedger, undefined);
       assert.equal((await req(`companies/${c.id}`, 'DELETE')).status, 200);
       const after = await (await req('state')).json();
       assert.equal(after.companies.length, 0);
       assert.equal(after.analyses.length, 0);
+      assert.equal(after.prompts.length, 0);
       assert.equal(
         after.metrics.contactsToday,
         1,

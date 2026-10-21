@@ -40,11 +40,17 @@ export default function CitySelector({
   useEffect(() => {
     let alive = true;
     fetch('/api/localities/states')
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Não foi possível carregar os estados.');
+        return data;
+      })
       .then((data) => {
         if (alive && data.states) setStates(data.states);
       })
-      .catch(() => {});
+      .catch((e) => {
+        if (alive) setError(e.message);
+      });
     return () => {
       alive = false;
     };
@@ -94,6 +100,12 @@ export default function CitySelector({
     if (open) input.current?.focus();
   }, [open]);
   const filtered = cities.filter((c) => norm(c.name).includes(norm(query)));
+  useEffect(() => {
+    if (open && filtered[active])
+      root.current
+        ?.querySelector(`#municipality-${filtered[active].id}`)
+        ?.scrollIntoView({ block: 'nearest' });
+  }, [active, open, query]);
   const recentHere = recent.filter((c) => c.uf === uf && cities.some((city) => city.id === c.id));
   function choose(city: Municipality) {
     onChange(city, uf);

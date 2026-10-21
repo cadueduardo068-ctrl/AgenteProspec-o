@@ -17,6 +17,12 @@ Copie `.env.example` para `.env.local`, preencha somente as integrações necess
 
 - Login protegido, validação, CSRF e rate limiting persistente.
 - Cadastro verificado, filtros, cards, tabela, Kanban, notas, tarefas, arquivamento e linha do tempo com origem e data.
+- Seletor de municípios oficiais do IBGE por estado, busca por nome, navegação por teclado, cidades recentes persistidas e validação no backend. Funciona sem chave Google; padrão São Paulo/Bauru.
+- Cards reais de prospecção com nicho, localização, telefone, presença digital, pontuação explicada e ações de WhatsApp, prompt e detalhes. Redes sociais são diferenciadas de site próprio.
+- Empresas contatadas entram automaticamente na tabela ao abrir uma conversa, sem contar abertura como envio. Há busca, filtros, ordenação, datas e próxima ação.
+- Perfil com endereço próprio (`/companies/<id>`), notas com debounce, indicador de salvamento, tarefas com data/descrição/status, respostas e histórico cronológico.
+- Cinco objetivos de mensagens comerciais com edição e revisão antes do WhatsApp. Sem OpenAI, modelos locais identificados; com credenciais, geração real via Responses API.
+- Prompts de sites personalizados por segmento com landing page ou institucional recomendado, pendências explícitas, editor, cópia e histórico de versões. Marcar uma demonstração como iniciada cria tarefa manual; não simula execução do Codex.
 - Fila priorizada por pontuação estimada, rascunhos editáveis, cópia e abertura do WhatsApp pessoal.
 - Consentimento e exclusão permanente. Abrir não conta como envio. Confirmação manual idempotente, cancelamento e limite inicial de 10 contatos/dia em São Paulo, com controle de concorrência.
 - Importação voluntária de `.txt` ou texto, análise por regras locais identificada ou OpenAI configurada e aprovação das mudanças no CRM. Texto original não é retido por padrão.
@@ -39,6 +45,8 @@ Copie `.env.example` para `.env.local`, preencha somente as integrações necess
 | GitHub de clientes | Publicação manual após revisão | Sem publicação automática |
 
 “Configurada” indica presença das variáveis, não validação de acesso. Resultados Google são temporários, com atribuição. O CRM guarda Place ID e dados verificados independentemente; não copie conteúdo do Places para armazenamento permanente. A idade de sites exige revisão manual.
+
+No fluxo dos cards, uma empresa ainda não cadastrada passa por revisão e confirmação de fonte independente antes de ser salva. O telefone é normalizado para Brasil sem inventar DDD ou nono dígito; número ausente ou ambíguo desabilita o WhatsApp. Acompanhamentos de contatos já confirmados não consomem uma nova vaga de primeiro contato.
 
 ## Verificação
 

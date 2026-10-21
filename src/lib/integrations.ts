@@ -14,8 +14,10 @@ import {
   type Company,
 } from './domain';
 import { getCompany, optOut } from './crm';
+import { generateCommercialMessage } from './commercial-content';
 import {
   prepareContact,
+  openFollowup,
   openContact,
   confirmContact,
   cancelContact,
@@ -111,8 +113,10 @@ export function reserveMessage(
       throw new Error('Contato inicial já reservado ou realizado.');
     if (
       initialContacts(s, dayInSaoPaulo(now)) +
-        s.contacts.filter((item) => item.status === 'aberto' && item.day === dayInSaoPaulo(now))
-          .length >=
+        s.contacts.filter(
+          (item) =>
+            item.status === 'aberto' && item.day === dayInSaoPaulo(now) && item.kind !== 'followup',
+        ).length >=
       s.settings.dailyLimit
     )
       throw new Error('Limite diário de novos contatos atingido.');
@@ -398,6 +402,8 @@ export async function integrationRoute(
     return json({ error: 'Rota não encontrada.' }, 404);
   }
   if (!db) return json({ error: 'Rota não encontrada.' }, 404);
+  if (route === 'commercial/message' && req.method === 'POST')
+    return json(await generateCommercialMessage(db, await input(req)));
   if (parts[0] === 'manual' && req.method === 'POST') {
     if (parts[1] === 'prepare') {
       const data = z
@@ -408,9 +414,15 @@ export async function integrationRoute(
         .parse(await input(req));
       return json({ text: await db.mutate((s) => prepareContact(s, data.companyId, data.text)) });
     }
-    if (parts[1] === 'open') {
+    if (parts[1] === 'open' || parts[1] === 'followup') {
       const data = z.object({ companyId: z.string().uuid() }).parse(await input(req));
-      return json(await db.mutate((s) => openContact(s, data.companyId)));
+      return json(
+        await db.mutate((s) =>
+          parts[1] === 'followup'
+            ? openFollowup(s, data.companyId)
+            : openContact(s, data.companyId),
+        ),
+      );
     }
     if (parts[1] === 'confirm' || parts[1] === 'cancel') {
       const data = z.object({ contactId: z.string().uuid() }).parse(await input(req));

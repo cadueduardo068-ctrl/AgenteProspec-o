@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { event, stages, phoneNumber, type Company, type State } from './domain';
+import { event, stages, type Company, type State } from './domain';
+import { brazilianPhone } from './phones';
 const url = z
   .string()
   .max(1000)
@@ -13,7 +14,8 @@ export const companySchema = z.object({
     .string()
     .max(30)
     .default('')
-    .transform((v) => (v ? phoneNumber(v) : '')),
+    .transform((v) => (v ? brazilianPhone(v) : '')),
+  address: z.string().trim().max(1000).default(''),
   website: url.default(''),
   source: url.min(8),
   verified: z.literal(true),
@@ -61,10 +63,19 @@ export function updateCompany(s: State, id: string, input: unknown) {
     .strict()
     .parse(input);
   const c = getCompany(s, id);
+  if (patch.stage && c.optedOut && patch.stage !== 'Não contatar')
+    throw new Error('Uma recusa não pode ser removida pela alteração de etapa.');
   if (patch.stage && ['WhatsApp aberto', 'Envio confirmado', 'Não contatar'].includes(patch.stage))
     throw new Error('Esta etapa é controlada pelas ações auditáveis de contato e exclusão.');
+  if (Object.entries(patch).every(([key, value]) => c[key as keyof Company] === value)) return c;
+  if (patch.stage === 'Sem interesse') optOut(s, id);
   Object.assign(c, patch, { updatedAt: new Date().toISOString() });
-  event(s, `${c.name}: cadastro atualizado`, id);
+  event(
+    s,
+    `${c.name}: ${patch.stage ? `etapa alterada para ${patch.stage}` : patch.notes !== undefined ? 'anotações atualizadas' : 'cadastro atualizado'}`,
+    id,
+    'edição do administrador',
+  );
   return c;
 }
 export function optOut(s: State, id: string) {
@@ -95,5 +106,5 @@ export function grantConsent(s: State, id: string, input: unknown) {
   event(s, `${c.name}: autorização registrada`, id);
 }
 export function draftApproach(c: Company) {
-  return `Olá! Sou o assistente virtual da CADU AI. Gostaria de apresentar uma proposta de site para ${c.name}, em ${c.city}. Posso enviar mais informações? Se não desejar contato, basta informar.`;
+  return `Olá, tudo bem? Estou falando com o responsável pela ${c.name}? Trabalho com criação de sites profissionais na CADU AI e gostaria de apresentar uma ideia para vocês. Posso explicar brevemente?`;
 }

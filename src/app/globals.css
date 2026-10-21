@@ -2767,3 +2767,13 @@ td {
   font-size: 11px;
   padding: 4px;
 }
+.location-selector { display: flex; flex-direction: column; gap: 9px; }
+.location-selector .form-row { align-items: flex-start; }
+.location-selector .form-row > label { flex: 1; }
+.city-combobox { position: relative; flex: 1.3; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.city-combobox .niche-trigger { width: 100%; }
+.city-dropdown { top: 64px; min-width: 250px; }
+.city-dropdown .niche-options button { justify-content: space-between; }
+.niche-options .keyboard-active { background: #233b5c; }
+.city-empty { padding: 18px 12px; color: #7e9ac0; font-size: 11px; line-height: 1.8; }
+@media(max-width: 480px) { .location-selector .form-row { flex-direction: column; } .location-selector .form-row > label,.city-combobox { width: 100%; } .city-dropdown { min-width: 0; } }

@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import { dayInSaoPaulo, event } from './domain';
 import type { Store } from './store';
+import { localities, type LocalityService } from './localities';
 const nicheName = z.string().trim().min(2).max(100);
 export const prospectSchema = z
   .object({
     niches: z.array(nicheName).min(1).max(8).optional(),
     niche: nicheName.optional(),
     city: z.string().trim().min(2).max(100),
+    cityId: z.number().int().positive().optional(),
     state: z.string().regex(/^[A-Z]{2}$/),
     limit: z.number().int().min(1).max(60),
     priority: z.enum(['no-site', 'all', 'old-site']),
@@ -27,10 +29,18 @@ export const prospectSchema = z
     (data) => data.limit >= data.niches.length,
     'O limite de resultados deve ser igual ou maior que a quantidade de nichos.',
   );
-export async function searchPlaces(db: Store, input: unknown) {
+export async function searchPlaces(
+  db: Store,
+  input: unknown,
+  locations: LocalityService = localities(),
+) {
   const data = prospectSchema.parse(input);
   if (!process.env.GOOGLE_PLACES_API_KEY)
     throw new Error('Configure GOOGLE_PLACES_API_KEY no servidor para buscar empresas reais.');
+  const city = await locations.validate(data.state, data.city, data.cityId);
+  await db.mutate((s) => {
+    s.recentCities = [city, ...s.recentCities.filter((c) => c.id !== city.id)].slice(0, 8);
+  });
   const places: Record<string, unknown>[] = [];
   for (const [index, niche] of data.niches.entries()) {
     const allocation =

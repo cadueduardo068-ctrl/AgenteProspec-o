@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createClient } from '@supabase/supabase-js';
-import { initialState, type State } from './domain';
+import { initialState, normalizeState, type State } from './domain';
 
 export interface Store {
   read(): Promise<State>;
@@ -22,7 +22,7 @@ export class SqliteStore implements Store {
   }
   async read(): Promise<State> {
     const row = this.db.prepare('SELECT data FROM app_state WHERE id=1').get() as { data: string };
-    return JSON.parse(row.data);
+    return normalizeState(JSON.parse(row.data));
   }
   async mutate<T>(fn: (state: State) => T): Promise<T> {
     this.db.exec('BEGIN IMMEDIATE');
@@ -30,7 +30,7 @@ export class SqliteStore implements Store {
       const row = this.db.prepare('SELECT data FROM app_state WHERE id=1').get() as {
         data: string;
       };
-      const state: State = JSON.parse(row.data);
+      const state: State = normalizeState(JSON.parse(row.data));
       const result = fn(state);
       this.db
         .prepare('UPDATE app_state SET data=?,version=version+1 WHERE id=1')
@@ -57,7 +57,9 @@ export class SupabaseStore implements Store {
       .eq('id', 1)
       .single();
     if (error) throw new Error('Banco indisponível. Confira a migração e as credenciais Supabase.');
-    return data as { version: number; data: State };
+    const snapshot = data as { version: number; data: State };
+    snapshot.data = normalizeState(snapshot.data);
+    return snapshot;
   }
   async read() {
     return (await this.snapshot()).data;

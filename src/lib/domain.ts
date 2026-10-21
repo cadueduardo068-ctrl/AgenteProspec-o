@@ -107,6 +107,7 @@ export type Analysis = {
   rawText?: string;
 };
 export type State = {
+  recentCities: { id: number; name: string; uf: string }[];
   companies: Company[];
   messages: Message[];
   jobs: Job[];
@@ -134,6 +135,7 @@ export type State = {
   rateLimits: Record<string, { start: number; count: number }>;
 };
 export const initialState = (): State => ({
+  recentCities: [],
   companies: [],
   messages: [],
   jobs: [],
@@ -154,6 +156,13 @@ export const initialState = (): State => ({
   usage: [],
   rateLimits: {},
 });
+export function normalizeState(saved: Partial<State>): State {
+  return {
+    ...initialState(),
+    ...saved,
+    settings: { ...initialState().settings, ...saved.settings },
+  };
+}
 export function dayInSaoPaulo(at = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',

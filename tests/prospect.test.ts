@@ -1,7 +1,9 @@
+import { LocalityService } from '../src/lib/localities';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prospectSchema, searchPlaces } from '../src/lib/prospect';
 import { SqliteStore } from '../src/lib/store';
+const locations = new LocalityService(async () => Response.json([{ id: 3506003, nome: 'Bauru' }]));
 const query = {
   niches: ['Psicólogos', 'Dentistas'],
   city: 'Bauru',
@@ -46,7 +48,7 @@ test('busca multi nicho distribui limite, deduplica e não persiste conteúdo Pl
     });
   };
   try {
-    const result = await searchPlaces(db, query);
+    const result = await searchPlaces(db, query, locations);
     assert.equal(calls.length, 2);
     assert.deepEqual(
       calls.map((c) => c.pageSize),
@@ -78,7 +80,7 @@ test('erro de permissão Google é sanitizado e consome cota sem vazar resposta'
     );
   try {
     await assert.rejects(
-      searchPlaces(db, query),
+      searchPlaces(db, query, locations),
       (e) =>
         e instanceof Error &&
         e.message.includes('Places API (New)') &&

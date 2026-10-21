@@ -22,6 +22,7 @@ import { event } from '@/lib/domain';
 import { metrics } from '@/lib/metrics';
 import { integrations, integrationRoute } from '@/lib/integrations';
 import { allowedOrigin } from '@/lib/origin';
+import { localities } from '@/lib/localities';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const json = (data: unknown, status = 200) =>
@@ -68,6 +69,24 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
       return json({ error: 'Entre para continuar.' }, 401);
     await rateLimit('admin-api', 300, 60_000);
     const db = store();
+    if (route === 'localities/states' && method === 'GET')
+      return json({ states: await localities().states() });
+    if (route === 'localities/cities' && method === 'GET')
+      return json({ cities: await localities().cities(req.nextUrl.searchParams.get('uf') || '') });
+    if (route === 'preferences/location' && method === 'POST') {
+      const data = z
+        .object({
+          uf: z.string().length(2),
+          name: z.string().min(1).max(100),
+          id: z.number().int(),
+        })
+        .parse(await body(req));
+      const city = await localities().validate(data.uf, data.name, data.id);
+      await db.mutate((s) => {
+        s.recentCities = [city, ...s.recentCities.filter((c) => c.id !== city.id)].slice(0, 8);
+      });
+      return json({ city });
+    }
     if (route === 'state' && method === 'GET') {
       const state = await db.read();
       const { exclusions, webhookIds, rateLimits, contactLedger, ...safe } = state;

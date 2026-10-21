@@ -58,6 +58,8 @@ import { stages, score, type State, type Company, type Analysis, jobStages } fro
 import type { metrics } from '@/lib/metrics';
 import type { integrations } from '@/lib/integrations';
 import NicheSelector from './niche-selector';
+import CitySelector from './city-selector';
+import type { Municipality } from '@/lib/localities';
 
 type Data = Omit<State, 'exclusions' | 'webhookIds' | 'rateLimits'> & {
   metrics: ReturnType<typeof metrics>;
@@ -451,6 +453,7 @@ export default function Dashboard() {
                   {tab === 'prospect' && (
                     <Prospect
                       ready={data.integrations.places.configured}
+                      recentCities={data.recentCities}
                       onAdd={() => setAdd(true)}
                       notify={setToast}
                       refresh={refresh}
@@ -1159,17 +1162,25 @@ function Companies({ companies, select }: { companies: Company[]; select: (v: st
 }
 function Prospect({
   ready,
+  recentCities,
   onAdd,
   notify,
   refresh,
 }: {
   ready: boolean;
+  recentCities: Municipality[];
   onAdd: () => void;
   notify: (s: string) => void;
   refresh: () => Promise<void>;
 }) {
   const [niches, setNiches] = useState<string[]>([]);
-  const [city, setCity] = useState('Bauru');
+  const [location, setLocation] = useState<Municipality | null>({
+    id: 3506003,
+    name: 'Bauru',
+    uf: 'SP',
+  });
+  const [locationReady, setLocationReady] = useState(false);
+  const city = location?.name || '';
   const [state, setState] = useState('SP');
   const [limit, setLimit] = useState(20);
   const [priority, setPriority] = useState('no-site');
@@ -1185,6 +1196,7 @@ function Prospect({
       const r = await api<{ places: Place[]; notice: string }>('prospect', 'POST', {
         niches,
         city,
+        cityId: location?.id,
         state,
         limit,
         priority,
@@ -1228,54 +1240,22 @@ function Prospect({
           </div>
           <form className="stack prospect-form" onSubmit={search}>
             <NicheSelector value={niches} onChange={setNiches} disabled={busy} />
-            <div className="form-row">
-              <label>
-                Cidade
-                <input
-                  required
-                  minLength={2}
-                  maxLength={100}
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                />
-              </label>
-              <label className="state-field">
-                Estado
-                <select value={state} onChange={(e) => setState(e.target.value)}>
-                  {[
-                    'AC',
-                    'AL',
-                    'AP',
-                    'AM',
-                    'BA',
-                    'CE',
-                    'DF',
-                    'ES',
-                    'GO',
-                    'MA',
-                    'MT',
-                    'MS',
-                    'MG',
-                    'PA',
-                    'PB',
-                    'PR',
-                    'PE',
-                    'PI',
-                    'RJ',
-                    'RN',
-                    'RS',
-                    'RO',
-                    'RR',
-                    'SC',
-                    'SP',
-                    'SE',
-                    'TO',
-                  ].map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <CitySelector
+              value={location}
+              uf={state}
+              onChange={(city, uf) => {
+                setLocation(city);
+                setState(uf);
+              }}
+              onReady={setLocationReady}
+              recent={recentCities}
+              disabled={busy}
+              remember={(city) => {
+                void api('preferences/location', 'POST', city)
+                  .then(() => refresh())
+                  .catch((e) => notify(e.message));
+              }}
+            />
             <div className="form-row">
               <label>
                 Máximo de resultados
@@ -1296,7 +1276,10 @@ function Prospect({
                 </select>
               </label>
             </div>
-            <button className="btn primary" disabled={busy}>
+            <button
+              className="btn primary"
+              disabled={busy || !locationReady || !location || !niches.length}
+            >
               {busy ? <Loader2 className="spin" size={17} /> : <Search size={17} />}Buscar empresas
             </button>
           </form>

@@ -25,6 +25,7 @@ dist/
 build/
 coverage/
 .next/
+.next-e2e/
 .nuxt/
 .cache/
 .venv/
@@ -42,3 +43,7 @@ Thumbs.db
 .vscode/
 tmp/
 temp/
+.local/
+playwright-report/
+test-results/
+!.env.example

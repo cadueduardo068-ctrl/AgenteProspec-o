@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import {
-  MessagesSquare,
-  Sparkles,
+  MessageCircle,
+  Code2,
   ArrowUpRight,
   MapPin,
   Phone,
@@ -112,25 +112,25 @@ export default function ResultCards({
         <div className="result-actions">
           <button
             className="btn whatsapp"
-            disabled={busy || !phone.phone}
-            title={phone.error || 'Revisar mensagem e autorização antes de abrir'}
+            disabled={busy}
+            title="Criar uma mensagem comercial para revisar; nenhum envio automático"
             onClick={() => {
               setDetail(null);
               onAction(p, 'whatsapp');
             }}
           >
-            <MessagesSquare size={15} />
-            Abrir WhatsApp
+            <MessageCircle size={15} />
+            Gerar mensagem para WhatsApp
           </button>
           <button
-            className="btn"
+            className="btn primary"
             disabled={busy}
             onClick={() => {
               setDetail(null);
               onAction(p, 'prompt');
             }}
           >
-            <Sparkles size={14} />
+            <Code2 size={14} />
             Gerar prompt do site
           </button>
           <button className="text-btn" onClick={() => setDetail(p)}>
@@ -139,7 +139,9 @@ export default function ResultCards({
           </button>
         </div>
         {phone.error && (
-          <small className="phone-disabled-reason">WhatsApp indisponível: {phone.error}</small>
+          <small className="phone-disabled-reason">
+            A mensagem pode ser gerada. Abertura do WhatsApp indisponível: {phone.error}
+          </small>
         )}
         {p.attributions?.map((a, i) => (
           <a className="muted" key={i} href={a.providerUri} target="_blank" rel="noreferrer">

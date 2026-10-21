@@ -25,6 +25,7 @@ import { integrations, integrationRoute } from '@/lib/integrations';
 import { allowedOrigin } from '@/lib/origin';
 import { localities } from '@/lib/localities';
 import { generateSitePrompt, saveSitePrompt, startPromptDemo } from '@/lib/site-prompts';
+import { saveCommercialMessage } from '@/lib/commercial-content';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const json = (data: unknown, status = 200) =>
@@ -71,6 +72,10 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
       return json({ error: 'Entre para continuar.' }, 401);
     await rateLimit('admin-api', 300, 60_000);
     const db = store();
+    if (route === 'commercial/messages' && method === 'POST') {
+      const input = await body(req);
+      return json(await db.mutate((s) => saveCommercialMessage(s, input)), 201);
+    }
     if (route === 'site-prompts/generate' && method === 'POST')
       return json(await generateSitePrompt(db, await body(req)));
     if (route === 'site-prompts' && method === 'POST') {
@@ -130,6 +135,7 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
           s.jobs = s.jobs.filter((j) => j.companyId !== id);
           s.tasks = s.tasks.filter((t) => t.companyId !== id);
           s.prompts = s.prompts.filter((p) => p.companyId !== id);
+          s.commercialMessages = s.commercialMessages.filter((m) => m.companyId !== id);
           s.events = s.events.filter((e) => e.companyId !== id);
           event(s, 'Cadastro e histórico removidos por solicitação do administrador');
         });
@@ -209,6 +215,7 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
         messages: s.messages,
         tasks: s.tasks,
         prompts: s.prompts,
+        commercialMessages: s.commercialMessages,
         jobs: s.jobs,
         events: s.events,
       });

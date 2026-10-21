@@ -21,7 +21,9 @@ Copie `.env.example` para `.env.local`, preencha somente as integrações necess
 - Cards reais de prospecção com nicho, localização, telefone, presença digital, pontuação explicada e ações de WhatsApp, prompt e detalhes. Redes sociais são diferenciadas de site próprio.
 - Empresas contatadas entram automaticamente na tabela ao abrir uma conversa, sem contar abertura como envio. Há busca, filtros, ordenação, datas e próxima ação.
 - Perfil com endereço próprio (`/companies/<id>`), notas com debounce, indicador de salvamento, tarefas com data/descrição/status, respostas e histórico cronológico.
-- Cinco objetivos de mensagens comerciais com edição e revisão antes do WhatsApp. Sem OpenAI, modelos locais identificados; com credenciais, geração real via Responses API.
+- Dois geradores diretos nos resultados e no perfil: verde “Gerar mensagem para WhatsApp” e azul “Gerar prompt do site”. Ambos usam a mesma empresa provisória sem exigir formulário de verificação ou telefone.
+- Mensagens comerciais: Primeiro contato, Apresentar proposta, Cliente interessado, Oferecer demonstração e Enviar demonstração. Versões geradas e edições salvas ficam em histórico próprio, separado dos prompts técnicos. Rascunhos anteriores são preservados na migração. Sem OpenAI, modelos locais identificados; com credenciais, geração real via Responses API.
+- Enviar demonstração requer link de prévia/PDF aprovado pelo administrador ou job aprovado. Sem link aprovado, retorna pendência e bloqueia a abertura com esse texto. Nenhuma geração marca contato ou site criado. A abertura e a confirmação manual continuam independentes.
 - Prompts de sites personalizados por segmento com landing page ou institucional recomendado, pendências explícitas, editor, cópia e histórico de versões. Marcar uma demonstração como iniciada cria tarefa manual; não simula execução do Codex.
 - Fila priorizada por pontuação estimada, rascunhos editáveis, cópia e abertura do WhatsApp pessoal.
 - Consentimento e exclusão permanente. Abrir não conta como envio. Confirmação manual idempotente, cancelamento e limite inicial de 10 contatos/dia em São Paulo, com controle de concorrência.

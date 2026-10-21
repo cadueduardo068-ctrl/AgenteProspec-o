@@ -103,6 +103,22 @@ test(
       ).json();
       assert.equal(commercial.method, 'template');
       assert.match(commercial.text, /Empresa fictícia/);
+      const afterCommercial = await (await req('state')).json();
+      assert.equal(afterCommercial.commercialMessages.length, 1);
+      assert.equal(afterCommercial.prompts.length, 0);
+      assert.equal(afterCommercial.companies[0].stage, 'Empresa encontrada');
+      assert.equal(afterCommercial.contacts.length, 0);
+      const savedMessage = await (
+        await req('commercial/messages', 'POST', {
+          companyId: c.id,
+          text: commercial.text + ' Podemos conversar?',
+          method: commercial.method,
+          purpose: 'Primeiro contato',
+        })
+      ).json();
+      assert.ok(savedMessage.id);
+      assert.notEqual(savedMessage.id, commercial.id);
+      assert.equal((await (await req('state')).json()).commercialMessages.length, 2);
       assert.equal(
         (
           await req('tasks', 'POST', {
@@ -196,6 +212,7 @@ test(
       assert.equal(after.companies.length, 0);
       assert.equal(after.analyses.length, 0);
       assert.equal(after.prompts.length, 0);
+      assert.equal(after.commercialMessages.length, 0);
       assert.equal(
         after.metrics.contactsToday,
         1,
@@ -226,6 +243,19 @@ test(
         })
       ).json();
       assert.equal(provisional.verified, false);
+      const incompleteMessage = await (
+        await req('commercial/message', 'POST', {
+          companyId: provisional.id,
+          purpose: 'Oferecer demonstração',
+        })
+      ).json();
+      assert.match(incompleteMessage.text, /Empresa incompleta de teste/);
+      assert.equal(
+        (await (await req('state')).json()).companies.find(
+          (c: { id: string }) => c.id === provisional.id,
+        ).stage,
+        'Empresa encontrada',
+      );
       const again = await (
         await req('companies/provisional', 'POST', { placeId: 'http-provisional' })
       ).json();

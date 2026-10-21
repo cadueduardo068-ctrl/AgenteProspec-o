@@ -1,19 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Clipboard,
   MessagesSquare,
   Check,
   ShieldCheck,
-  Sparkles,
   Loader2,
   ExternalLink,
+  MessageCircle,
+  Pencil,
+  Save,
+  History,
 } from 'lucide-react';
-import { messagePurposes, messageTemplate, type MessagePurpose } from '@/lib/content-templates';
+import {
+  messagePurposes,
+  messageTemplate,
+  normalizePurpose,
+  commercialContactStatus,
+  type MessagePurpose,
+} from '@/lib/content-templates';
 import { whatsappPhone } from '@/lib/phones';
 import type { Company } from '@/lib/domain';
 import Dialog from './dialog';
-import { request, type WorkspaceAction, type WorkspaceData } from './client-api';
+import type { WorkspaceAction, WorkspaceData } from './client-api';
 export default function ContactComposer({
   company: c,
   data,
@@ -29,9 +38,39 @@ export default function ContactComposer({
   notify: (s: string) => void;
   busy: boolean;
 }) {
-  const [purpose, setPurpose] = useState<MessagePurpose>('Primeira abordagem');
-  const [text, setText] = useState(c.draft || messageTemplate(c, 'Primeira abordagem'));
+  const history = data.commercialMessages
+    .filter((m) => m.companyId === c.id)
+    .slice()
+    .reverse();
+  const latest = history[0];
+  const defaultPurpose = normalizePurpose(
+    c.draftMeta?.purpose ||
+      latest?.purpose ||
+      (['Interessado', 'Em negociação'].includes(c.stage)
+        ? 'Cliente interessado'
+        : 'Primeiro contato'),
+  );
+  const [purpose, setPurpose] = useState<MessagePurpose>(defaultPurpose);
+  const [text, setText] = useState(c.draft || latest?.text || messageTemplate(c, defaultPurpose));
   const [method, setMethod] = useState(c.draftMeta?.method || 'template');
+  const [editing, setEditing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | undefined>(latest?.id);
+  const approvedJob = data.jobs
+    .slice()
+    .reverse()
+    .find(
+      (j) =>
+        j.companyId === c.id &&
+        j.approvedAt &&
+        ['Aprovado', 'Enviado'].includes(j.status) &&
+        j.previewUrl,
+    );
+  const [demoUrl, setDemoUrl] = useState(latest?.approvedDemoUrl || approvedJob?.previewUrl || '');
+  const [demoApproved, setDemoApproved] = useState(
+    !!(latest?.approvedDemoUrl || approvedJob?.previewUrl),
+  );
+  const once = useRef(false);
+  const variant = useRef(0);
   const [evidence, setEvidence] = useState('');
   const [working, setWorking] = useState(false);
   const [opened, setOpened] = useState<{ id: string; url: string } | null>(null);
@@ -42,29 +81,69 @@ export default function ContactComposer({
     (item) => item.companyId === c.id && item.status === 'confirmado',
   );
   const blocked = c.optedOut || c.archived || data.settings.paused;
-  async function generate() {
+  async function generate(nextPurpose = purpose) {
     setWorking(true);
     try {
       const result = await action(
         'commercial/message',
         'POST',
-        { companyId: c.id, purpose },
+        {
+          companyId: c.id,
+          purpose: nextPurpose,
+          variant: variant.current++,
+          ...(nextPurpose === 'Enviar demonstração' && demoApproved && demoUrl.trim()
+            ? { approvedDemo: { url: demoUrl.trim(), confirmed: true } }
+            : {}),
+        },
         'Mensagem preparada para revisão.',
       );
       if (result) {
         setText(String(result.text));
         setMethod(result.method === 'openai' ? 'openai' : 'template');
         setApproved(false);
+        setEditing(false);
+        setSelectedId(String(result.id));
       }
     } finally {
       setWorking(false);
     }
+  }
+  useEffect(() => {
+    if (!once.current) {
+      once.current = true;
+      if (!history.length && !blocked) void generate();
+    }
+  }, []);
+  async function save() {
+    const result = await action(
+      'commercial/messages',
+      'POST',
+      {
+        companyId: c.id,
+        text,
+        purpose,
+        method,
+        ...(purpose === 'Enviar demonstração' && demoApproved && demoUrl.trim()
+          ? { approvedDemoUrl: demoUrl.trim() }
+          : {}),
+      },
+      'Mensagem salva no histórico comercial.',
+    );
+    if (result) {
+      setSelectedId(String(result.id));
+      setText(String(result.text));
+    }
+    return result;
   }
   async function open() {
     const popup = window.open('about:blank', '_blank');
     if (popup) popup.opener = null;
     setWorking(true);
     try {
+      if (!(await save())) {
+        popup?.close();
+        return;
+      }
       const saved = await action(
         'manual/prepare',
         'POST',
@@ -96,7 +175,7 @@ export default function ContactComposer({
     }
   }
   return (
-    <Dialog title={`WhatsApp · ${c.name}`} close={close}>
+    <Dialog title="Mensagem comercial com IA" close={close} tone="commercial">
       <div className="stack">
         <div className="contact-recipient">
           <span className="company-initial">{c.name.slice(0, 2).toUpperCase()}</span>
@@ -104,7 +183,9 @@ export default function ContactComposer({
             <strong>{c.name}</strong>
             <small>{phone.phone ? `+${phone.phone}` : phone.error}</small>
           </div>
-          <span className="badge green">Envio manual</span>
+          <span className="badge green">
+            <MessageCircle size={12} /> Texto para WhatsApp
+          </span>
         </div>
         {blocked && (
           <div className="notice error">
@@ -112,14 +193,15 @@ export default function ContactComposer({
           </div>
         )}
         <label>
-          Objetivo da mensagem
+          Tipo de mensagem
           <select
             value={purpose}
+            disabled={busy || working}
             onChange={(e) => {
               setPurpose(e.target.value as MessagePurpose);
-              setText(messageTemplate(c, e.target.value as MessagePurpose));
-              setMethod('template');
+              setSelectedId(undefined);
               setApproved(false);
+              void generate(e.target.value as MessagePurpose);
             }}
           >
             {messagePurposes.map((p) => (
@@ -127,24 +209,60 @@ export default function ContactComposer({
             ))}
           </select>
         </label>
+        {purpose === 'Enviar demonstração' && (
+          <div className="consent-box stack">
+            <label>
+              PDF ou link de prévia aprovado
+              <input
+                type="url"
+                value={demoUrl}
+                placeholder="https://"
+                maxLength={1000}
+                onChange={(e) => {
+                  setDemoUrl(e.target.value);
+                  setDemoApproved(false);
+                  setApproved(false);
+                }}
+              />
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={demoApproved}
+                onChange={(e) => setDemoApproved(e.target.checked)}
+              />
+              Revisei e aprovei este link para compartilhar com o cliente.
+            </label>
+            <small className="muted">
+              Após confirmar o link, gere outra versão. Sem prévia aprovada, o texto permanece como
+              pendência.
+            </small>
+          </div>
+        )}
         <div className="button-row">
           <button
-            className="btn"
+            className="btn whatsapp"
             disabled={busy || working || blocked}
             onClick={() => void generate()}
           >
-            {working ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}Preparar
-            mensagem {data.integrations.ai.configured ? 'com IA' : 'com modelo local'}
+            {working ? <Loader2 size={15} className="spin" /> : <MessageCircle size={15} />}
+            {working ? 'Preparando mensagem…' : 'Gerar outra versão'}
           </button>
           <span className="badge">
             {method === 'openai' ? 'Gerada por IA' : 'Modelo local · sem IA'}
           </span>
         </div>
+        {working && (
+          <p role="status" className="muted">
+            Preparando uma mensagem curta para {c.name}…
+          </p>
+        )}
         <label>
-          Prévia editável
+          {editing ? 'Editar mensagem' : 'Texto da mensagem'}
           <textarea
             aria-label="Mensagem comercial"
             value={text}
+            readOnly={!editing}
             minLength={1}
             maxLength={2000}
             style={{ minHeight: 150 }}
@@ -154,21 +272,46 @@ export default function ContactComposer({
             }}
           />
         </label>
-        <button
-          className="text-btn"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(text);
-              notify('Mensagem copiada. Nenhum envio foi realizado.');
-            } catch {
-              notify('Selecione e copie o texto manualmente.');
-            }
-          }}
-        >
-          <Clipboard size={14} />
-          Copiar mensagem
-        </button>
-        {!c.consent && !blocked && (
+        <div className="button-row">
+          <button
+            className="btn"
+            disabled={working || busy}
+            onClick={() => setEditing((value) => !value)}
+          >
+            <Pencil size={14} />
+            {editing ? 'Concluir edição' : 'Editar'}
+          </button>
+          <button
+            className="btn"
+            disabled={working || busy || !text.trim()}
+            onClick={() => void save()}
+          >
+            <Save size={14} />
+            Salvar no CRM
+          </button>
+          <button
+            className="text-btn"
+            disabled={working || !text.trim()}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(text);
+                notify('Mensagem copiada. Nenhum envio foi realizado.');
+              } catch {
+                notify('Selecione e copie o texto manualmente.');
+              }
+            }}
+          >
+            <Clipboard size={14} />
+            Copiar mensagem
+          </button>
+        </div>
+        {!c.verified && (
+          <div className="notice amber">
+            Dados provisórios. Você pode gerar, copiar e salvar a mensagem. Para abrir a conversa,
+            verifique as informações no perfil e registre a autorização de contato.
+          </div>
+        )}
+        {!c.consent && !blocked && c.verified && (
           <div className="consent-box stack">
             <h3>Autorização de contato</h3>
             <p className="muted">
@@ -212,12 +355,20 @@ export default function ContactComposer({
         <button
           className="btn whatsapp"
           disabled={
-            busy || working || !approved || !text.trim() || !phone.phone || !c.consent || blocked
+            busy ||
+            working ||
+            !approved ||
+            !text.trim() ||
+            !phone.phone ||
+            !c.verified ||
+            !c.consent ||
+            blocked ||
+            /\[PENDENTE:/.test(text)
           }
           onClick={() => void open()}
         >
           <MessagesSquare size={17} />
-          Abrir WhatsApp com mensagem
+          Abrir WhatsApp
         </button>
         {(opened || pending) && (
           <div className="notice amber stack">
@@ -280,6 +431,43 @@ export default function ContactComposer({
           Nenhuma mensagem é enviada automaticamente. Ter telefone não garante que ele esteja
           cadastrado no WhatsApp.
         </small>
+        <div className="section-heading">
+          <h3>
+            <History size={15} /> Histórico de mensagens comerciais
+          </h3>
+          <span className="badge green">{history.length} versões</span>
+        </div>
+        <div className="prompt-history-list commercial-history">
+          {history.map((m) => (
+            <button
+              key={m.id}
+              disabled={working || busy}
+              className={selectedId === m.id ? 'selected' : ''}
+              onClick={() => {
+                setSelectedId(m.id);
+                setPurpose(normalizePurpose(m.purpose));
+                setText(m.text);
+                setMethod(m.method);
+                setEditing(false);
+                setApproved(false);
+                setDemoUrl(m.approvedDemoUrl || '');
+                setDemoApproved(!!m.approvedDemoUrl);
+              }}
+            >
+              <MessageCircle size={15} />
+              <span>
+                {m.purpose}
+                <small>
+                  {new Date(m.createdAt).toLocaleString('pt-BR')} ·{' '}
+                  {commercialContactStatus(data.contacts, c.id, m.text, m.id)}
+                </small>
+              </span>
+            </button>
+          ))}
+          {!history.length && (
+            <p className="muted">As mensagens geradas e as edições salvas aparecem aqui.</p>
+          )}
+        </div>
       </div>
     </Dialog>
   );

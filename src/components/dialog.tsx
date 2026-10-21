@@ -6,11 +6,13 @@ export default function Dialog({
   children,
   close,
   wide = false,
+  tone,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
   wide?: boolean;
+  tone?: 'commercial' | 'site';
 }) {
   const root = useRef<HTMLElement>(null);
   const callback = useRef(close);
@@ -67,7 +69,7 @@ export default function Dialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`modal ${wide ? 'wide' : ''}`}
+        className={`modal ${wide ? 'wide' : ''} ${tone ? `generator-${tone}` : ''}`}
       >
         <div className="modal-head">
           <h2>{title}</h2>

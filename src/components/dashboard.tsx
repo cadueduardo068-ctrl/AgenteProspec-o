@@ -183,7 +183,7 @@ function Modal({
   );
 }
 export default function Dashboard({ initialCompanyId }: { initialCompanyId?: string }) {
-  const [tab, setTab] = useState(initialCompanyId ? 'contacted' : 'overview');
+  const [tab, setTab] = useState(initialCompanyId ? 'companies' : 'overview');
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -1451,9 +1451,9 @@ function Prospect({
               verify={verify}
               onAction={(place, mode) => {
                 const existing = companies.find((c) => c.placeId === place.id);
-                if (existing && (mode === 'prompt' || existing.verified))
+                if (existing && (mode !== 'details' || existing.verified))
                   onCompanyAction(existing.id, mode);
-                else if (mode === 'prompt') {
+                else if (mode === 'prompt' || mode === 'whatsapp') {
                   setBusy(true);
                   void createProvisional({
                     placeId: place.id,
@@ -1467,7 +1467,7 @@ function Prospect({
                     source: place.googleMapsUri || '',
                   })
                     .then((id) => {
-                      if (id) onCompanyAction(id, 'prompt');
+                      if (id) onCompanyAction(id, mode);
                     })
                     .finally(() => setBusy(false));
                 } else setCandidate({ place, mode });

@@ -96,6 +96,7 @@ export type ManualContact = {
   companyId: string;
   phone: string;
   text: string;
+  commercialMessageId?: string;
   status: 'aberto' | 'confirmado' | 'cancelado';
   openedAt: string;
   confirmedAt?: string;
@@ -118,6 +119,7 @@ export type Analysis = {
   rawText?: string;
 };
 export type State = {
+  commercialMessages: CommercialMessage[];
   prompts: SitePrompt[];
   recentCities: { id: number; name: string; uf: string }[];
   companies: Company[];
@@ -147,6 +149,7 @@ export type State = {
   rateLimits: Record<string, { start: number; count: number }>;
 };
 export const initialState = (): State => ({
+  commercialMessages: [],
   prompts: [],
   recentCities: [],
   companies: [],
@@ -179,10 +182,31 @@ export type SitePrompt = {
   updatedAt: string;
   startedAt?: string;
 };
+export type CommercialMessage = {
+  id: string;
+  companyId: string;
+  text: string;
+  purpose: string;
+  method: 'template' | 'openai';
+  createdAt: string;
+  approvedDemoUrl?: string;
+};
 export function normalizeState(saved: Partial<State>): State {
   return {
     ...initialState(),
     ...saved,
+    commercialMessages:
+      saved.commercialMessages ??
+      (saved.companies || [])
+        .filter((c) => c.draft?.trim())
+        .map((c) => ({
+          id: c.id,
+          companyId: c.id,
+          text: c.draft!,
+          purpose: c.draftMeta?.purpose || 'Primeiro contato',
+          method: c.draftMeta?.method || 'template',
+          createdAt: c.draftMeta?.at || c.updatedAt,
+        })),
     settings: { ...initialState().settings, ...saved.settings },
   };
 }

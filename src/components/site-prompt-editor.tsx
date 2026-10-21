@@ -71,7 +71,7 @@ export default function SitePromptEditor({
   const saved = data.prompts.find((p) => p.id === id);
   const edited = saved && saved.text !== text;
   return (
-    <Dialog title="Gerar site com IA" close={close} wide>
+    <Dialog title="Prompt para criação do site" close={close} wide tone="site">
       <div className="stack">
         <section className="prompt-company-summary">
           <div className="section-heading">
@@ -128,7 +128,7 @@ export default function SitePromptEditor({
             onClick={() => void generate()}
           >
             <Sparkles size={14} />
-            Gerar prompt com IA
+            Gerar prompt do site
           </button>
         </div>
         <p className="muted">
@@ -184,7 +184,7 @@ export default function SitePromptEditor({
             }}
           >
             <Clipboard size={15} />
-            Copiar prompt
+            Copiar para o Codex
           </button>
           <button
             className="btn primary"
@@ -216,7 +216,7 @@ export default function SitePromptEditor({
         </small>
         <div className="section-heading">
           <h3>
-            <History size={14} /> Histórico da empresa
+            <History size={14} /> Histórico de prompts de sites
           </h3>
           <span className="badge">{history.length} versões</span>
         </div>

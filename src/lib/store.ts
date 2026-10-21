@@ -80,7 +80,7 @@ export class SupabaseStore implements Store {
 }
 const globalStore = globalThis as unknown as { caduStore?: Store; caduSchema?: number };
 export function store(): Store {
-  if (!globalStore.caduStore || globalStore.caduSchema !== 3) {
+  if (!globalStore.caduStore || globalStore.caduSchema !== 4) {
     const old = globalStore.caduStore as (Store & { close?: () => void }) | undefined;
     old?.close?.();
     if (process.env.DATABASE_DRIVER === 'supabase') {
@@ -94,7 +94,7 @@ export function store(): Store {
         path.resolve(process.env.LOCAL_DATA_DIR || '.local', 'cadu.sqlite'),
       );
     }
-    globalStore.caduSchema = 3;
+    globalStore.caduSchema = 4;
   }
   return globalStore.caduStore;
 }

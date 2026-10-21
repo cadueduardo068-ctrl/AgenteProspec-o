@@ -3350,3 +3350,47 @@ td {
     flex-basis: 100%;
   }
 }
+.generator-commercial {
+  border-top: 3px solid #35c890;
+  animation: generator-enter 0.2s ease-out;
+}
+.generator-site {
+  border-top: 3px solid #598cff;
+  animation: generator-enter 0.2s ease-out;
+}
+.generator-commercial .modal-head h2 {
+  color: #8ee4bd;
+}
+.generator-site .modal-head h2 {
+  color: #a3beff;
+}
+.commercial-history .profile-answer {
+  border-left: 2px solid #35c890;
+}
+.commercial-history button.selected {
+  border-color: #35c890;
+  background: #15362f;
+}
+.generator-commercial .contact-recipient {
+  flex-wrap: wrap;
+}
+.result-actions .btn {
+  white-space: normal;
+  text-align: left;
+}
+@keyframes generator-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .generator-commercial,
+  .generator-site {
+    animation: none;
+  }
+}

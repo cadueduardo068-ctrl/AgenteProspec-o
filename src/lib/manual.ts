@@ -7,6 +7,7 @@ import {
   type State,
   type Company,
   type Analysis,
+  type ManualContact,
 } from './domain';
 import { getCompany, draftApproach, optOut } from './crm';
 import type { Store } from './store';
@@ -34,6 +35,8 @@ export function openContact(s: State, id: string, now = new Date()) {
   if (c.optedOut || c.archived || s.exclusions.includes(c.phone))
     throw new Error('Contato bloqueado ou arquivado.');
   if (!c.draft) throw new Error('Prepare e revise a mensagem antes de abrir o WhatsApp.');
+  if (/\[PENDENTE:/i.test(c.draft))
+    throw new Error('Resolva as pendências da mensagem antes de abrir o WhatsApp.');
   if (
     s.contactLedger.some(
       (item) => item.phoneHash === phoneHash(c.phone) && item.status !== 'cancelled',
@@ -60,7 +63,7 @@ export function openContact(s: State, id: string, now = new Date()) {
     throw new Error(
       'Todas as vagas estão confirmadas ou aguardando confirmação. Confirme ou cancele os contatos pendentes.',
     );
-  const contact = existing || {
+  const contact: ManualContact = existing || {
     id: crypto.randomUUID(),
     companyId: id,
     phone: c.phone,
@@ -72,6 +75,10 @@ export function openContact(s: State, id: string, now = new Date()) {
   };
   if (!existing) s.contacts.push(contact);
   else contact.text = c.draft;
+  contact.commercialMessageId = s.commercialMessages
+    .slice()
+    .reverse()
+    .find((m) => m.companyId === id && m.text === c.draft)?.id;
   c.stage = 'WhatsApp aberto';
   event(
     s,
@@ -159,6 +166,8 @@ export function openFollowup(s: State, id: string, now = new Date()) {
   )
     throw new Error('Confirme o primeiro contato antes de registrar acompanhamento.');
   if (!c.draft) throw new Error('Revise a mensagem antes de abrir.');
+  if (/\[PENDENTE:/i.test(c.draft))
+    throw new Error('Resolva as pendências da mensagem antes de abrir o WhatsApp.');
   let contact = s.contacts.find(
     (item) => item.companyId === id && item.status === 'aberto' && item.day === dayInSaoPaulo(now),
   );
@@ -175,6 +184,10 @@ export function openFollowup(s: State, id: string, now = new Date()) {
     };
     s.contacts.push(contact);
   } else contact.text = c.draft;
+  contact.commercialMessageId = s.commercialMessages
+    .slice()
+    .reverse()
+    .find((m) => m.companyId === id && m.text === c.draft)?.id;
   event(
     s,
     `${c.name}: acompanhamento aberto no WhatsApp; envio não confirmado`,

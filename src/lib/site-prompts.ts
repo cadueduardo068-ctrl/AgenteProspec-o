@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getCompany } from './crm';
-import { event, type Company, type State, type SitePrompt } from './domain';
+import { event, websitePresence, type Company, type State, type SitePrompt } from './domain';
 import { aiText, verifiedCompanyData } from './commercial-content';
 import type { Store } from './store';
 import { whatsappPhone } from './phones';
@@ -42,7 +42,8 @@ ${JSON.stringify(verifiedCompanyData(c), null, 2)}
 
 Serviços confirmados: ${(c.verified && c.services.trim()) || '[PENDENTE: confirmar a lista de serviços com a empresa. Não inventar serviços.]'}
 Localização: ${c.city}, ${c.state}${c.address ? ` · ${c.address}` : ''}.
-Site atual: ${c.website || '[NÃO CONFIRMADO: não afirmar publicamente que a empresa não possui site.]'}
+Canal digital identificado: ${c.website || '[NÃO CONFIRMADO: não afirmar publicamente que a empresa não possui site.]'}
+Classificação do canal: ${websitePresence(c.website) === 'social' ? 'Rede social ou contato; não comprova site próprio. Não integrar canais não confirmados.' : websitePresence(c.website) === 'website' ? 'Possível site; confirmar propriedade e informações antes de publicar.' : 'Site próprio não identificado; ausência não confirmada.'}
 Contato: ${phone.phone ? `+${phone.phone}` : '[PENDENTE: telefone comercial completo e verificado]'}.
 Fonte ${c.verified ? 'de verificação' : 'observada, não validada'}: ${c.source || '[PENDENTE: fonte de verificação]'}.
 Telefone observado: ${!c.verified && c.phone ? `${c.phone} [NÃO CONFIRMADO; não habilitar contato]` : '[ver contato confirmado acima]'}.

@@ -21,9 +21,9 @@ export default function Privacy() {
         OpenAI recebe os trechos selecionados para análise; o pedido usa store=false. A retenção
         contratual do provedor deve ser verificada pelo administrador. As consultas permanecem
         temporárias; ao solicitar um prompt, os dados selecionados são associados a um registro
-        provisório não verificado. Prompts salvos mantêm versões até a exclusão do cadastro. O
-        administrador deve observar as permissões de uso e retenção da fonte antes de salvar ou
-        publicar conteúdo.{' '}
+        provisório não verificado. Mensagens comerciais geradas e prompts salvos mantêm históricos
+        separados até a exclusão do cadastro. O administrador deve observar as permissões de uso e
+        retenção da fonte antes de salvar ou publicar conteúdo.{' '}
         <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">
           Política de Privacidade do Google
         </a>

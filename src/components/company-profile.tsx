@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   MessagesSquare,
+  MessageCircle,
+  Code2,
   Sparkles,
   MapPin,
   Phone,
@@ -23,6 +25,7 @@ import { stages, score, type Company, type Analysis } from '@/lib/domain';
 import { whatsappPhone } from '@/lib/phones';
 import { request, type WorkspaceAction, type WorkspaceData } from './client-api';
 import { commercialStageLabel, nextAction } from './contacted-companies';
+import { commercialContactStatus } from '@/lib/content-templates';
 import Dialog from './dialog';
 export default function CompanyProfile({
   company: c,
@@ -185,15 +188,15 @@ export default function CompanyProfile({
         <div className="button-row">
           <button
             className="btn whatsapp"
-            disabled={!phone.phone || c.optedOut || c.archived}
-            title={phone.error || 'Revisar mensagem'}
+            disabled={c.optedOut || c.archived}
+            title="Criar texto comercial para revisão"
             onClick={compose}
           >
-            <MessagesSquare size={16} />
-            Abrir WhatsApp
+            <MessageCircle size={16} />
+            Gerar mensagem para WhatsApp
           </button>
           <button className="btn primary" disabled={c.optedOut || c.archived} onClick={prompt}>
-            <Sparkles size={16} />
+            <Code2 size={16} />
             Gerar prompt do site
           </button>
           {!c.verified && (
@@ -261,7 +264,8 @@ export default function CompanyProfile({
           { id: 'overview', label: 'Visão do cliente' },
           { id: 'history', label: 'Histórico comercial' },
           { id: 'responses', label: 'Respostas e análise' },
-          { id: 'prompts', label: 'Prompts do site' },
+          { id: 'commercial', label: 'Mensagens comerciais' },
+          { id: 'prompts', label: 'Prompts de sites' },
         ].map((t) => (
           <button
             key={t.id}
@@ -709,15 +713,56 @@ export default function CompanyProfile({
                 ))}
             </section>
           )}
+          {activeTab === 'commercial' && (
+            <section className="panel profile-panel stack commercial-history">
+              <div className="section-heading">
+                <h2>Mensagens comerciais</h2>
+                <MessageCircle size={17} />
+              </div>
+              <p className="muted">
+                Textos para conversar com o cliente. As versões são independentes dos prompts
+                técnicos e só registram envio após sua confirmação.
+              </p>
+              <button
+                className="btn whatsapp"
+                onClick={compose}
+                disabled={c.optedOut || c.archived}
+              >
+                <MessageCircle size={16} />
+                Gerar mensagem para WhatsApp
+              </button>
+              {data.commercialMessages
+                .filter((m) => m.companyId === c.id)
+                .slice()
+                .reverse()
+                .map((m) => (
+                  <article className="profile-answer" key={m.id}>
+                    <span className="badge green">{m.purpose}</span>
+                    <p style={{ whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                    <small>
+                      {new Date(m.createdAt).toLocaleString('pt-BR')} ·{' '}
+                      {m.method === 'openai' ? 'IA' : 'Modelo local'} ·{' '}
+                      {commercialContactStatus(data.contacts, c.id, m.text, m.id)}
+                    </small>
+                    <button className="text-btn" onClick={compose}>
+                      Abrir histórico, editar e copiar mensagem
+                    </button>
+                  </article>
+                ))}
+              {!data.commercialMessages.some((m) => m.companyId === c.id) && (
+                <p className="muted">Nenhuma mensagem comercial gerada ainda.</p>
+              )}
+            </section>
+          )}
           {activeTab === 'prompts' && (
             <section className="panel profile-panel stack">
               <div className="section-heading">
-                <h2>Prompts e demonstrações</h2>
+                <h2>Prompts de sites</h2>
                 <FileText size={17} />
               </div>
               <p className="muted">
-                Um briefing completo para criar um site com dados confirmados, sem inventar
-                informações da empresa.
+                Instruções técnicas para o Codex, com dados confirmados e pendências identificadas,
+                sem inventar informações da empresa.
               </p>
               <button className="btn primary" onClick={prompt}>
                 <Sparkles size={16} />
@@ -730,6 +775,11 @@ export default function CompanyProfile({
                 .map((p) => (
                   <article className="profile-answer" key={p.id}>
                     <span className="badge blue">{p.plan}</span>
+                    <span className="badge">
+                      {p.startedAt
+                        ? 'Demonstração iniciada · execução manual'
+                        : 'Prompt salvo · site não gerado'}
+                    </span>
                     <p>{p.text.slice(0, 200)}…</p>
                     <small>
                       {new Date(p.createdAt).toLocaleString('pt-BR')} ·{' '}

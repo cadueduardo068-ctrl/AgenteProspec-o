@@ -15,10 +15,19 @@
     "worker": "tsx --env-file-if-exists=.env.local workers/runner.ts",
     "password": "node scripts/password.mjs",
     "test:e2e": "tsx --test tests/http.e2e.ts",
-    "format": "prettier --write src workers tests scripts next.config.ts"
+    "format": "prettier --write src workers tests scripts next.config.ts",
+    "build:cloudflare": "node scripts/build-cloudflare.mjs",
+    "preview:cloudflare": "wrangler dev --ip 127.0.0.1 --port 8787 --local --persist-to .local/cloudflare",
+    "deploy:cloudflare": "node scripts/cloudflare-deploy.mjs",
+    "db:cloudflare:local": "wrangler d1 migrations apply DB --local --persist-to .local/cloudflare",
+    "db:cloudflare:remote": "wrangler d1 migrations apply DB --remote",
+    "db:cloudflare:export": "node --import tsx scripts/export-d1.ts",
+    "check:cloudflare:secrets": "node --env-file-if-exists=.env.local scripts/check-cloudflare-secrets.mjs",
+    "test:cloudflare": "tsx --test tests/cloudflare.e2e.ts"
   },
   "dependencies": {
     "@openai/codex-sdk": "0.163.0",
+    "@opennextjs/cloudflare": "^1.20.13",
     "@supabase/supabase-js": "2.118.0",
     "framer-motion": "^12.0.0",
     "lucide-react": "^0.468.0",
@@ -34,6 +43,12 @@
     "@types/react-dom": "^19.2.0",
     "prettier": "^3.9.10",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "wrangler": "^4.151.3"
+  },
+  "overrides": {
+    "@node-minify/core": {
+      "glob": "10.5.0"
+    }
   }
 }

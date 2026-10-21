@@ -8,7 +8,7 @@ const files = execFileSync(
   .split('\0')
   .filter(Boolean);
 const badNames =
-  /(^|\/)(\.env(?:\..*)?|\.npmrc|credentials[^/]*|service-account[^/]*|[^/]+\.(pem|key|p12|pfx)|\.local\/.*)$/i;
+  /(^|\/)(\.env(?:\..*)?|\.dev\.vars(?:\..*)?|\.npmrc|credentials[^/]*|service-account[^/]*|[^/]+\.(pem|key|p12|pfx)|\.local\/.*)$/i;
 const patterns = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\b(?:sk-proj-|sk_live_|ghp_|github_pat_|sb_secret_)[A-Za-z0-9_-]{16,}/,
@@ -18,7 +18,7 @@ const patterns = [
 ];
 let failed = false;
 for (const file of files) {
-  if (file !== '.env.example' && badNames.test(file)) {
+  if (!['.env.example', '.dev.vars.example'].includes(file) && badNames.test(file)) {
     console.error(`Nome de arquivo sensível: ${file}`);
     failed = true;
     continue;

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createClient } from '@supabase/supabase-js';
 import { initialState, normalizeState, type State } from './domain';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { D1Store, type D1Binding } from './d1-store';
 
 export interface Store {
   read(): Promise<State>;
@@ -80,6 +82,11 @@ export class SupabaseStore implements Store {
 }
 const globalStore = globalThis as unknown as { caduStore?: Store; caduSchema?: number };
 export function store(): Store {
+  if (process.env.DATABASE_DRIVER === 'd1') {
+    const binding = (getCloudflareContext().env as unknown as { DB?: D1Binding }).DB;
+    if (!binding) throw new Error('Configure o binding D1 DB antes de iniciar.');
+    return new D1Store(binding);
+  }
   if (!globalStore.caduStore || globalStore.caduSchema !== 4) {
     const old = globalStore.caduStore as (Store & { close?: () => void }) | undefined;
     old?.close?.();

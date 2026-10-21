@@ -280,7 +280,8 @@ test(
         await req('site-prompts/generate', 'POST', { companyId: provisional.id })
       ).json();
       assert.match(draft.text, /PROVISÓRIOS, NÃO CONFIRMADOS/);
-      assert.doesNotMatch(draft.text, /https:\/\/wa.me\//);
+      assert.match(draft.text, /https:\/\/wa.me\/5514988888888/);
+      assert.match(draft.text, /telefone comercial foi confirmado separadamente/);
       const savedDraft = await (
         await req('site-prompts', 'POST', { companyId: provisional.id, ...draft })
       ).json();

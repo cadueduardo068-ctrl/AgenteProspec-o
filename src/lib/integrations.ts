@@ -33,7 +33,12 @@ export function integrations() {
     manual: { configured: true, label: 'WhatsApp pessoal · links wa.me' },
     database: {
       configured: true,
-      label: process.env.DATABASE_DRIVER === 'supabase' ? 'Supabase PostgreSQL' : 'SQLite local',
+      label:
+        process.env.DATABASE_DRIVER === 'd1'
+          ? 'Cloudflare D1'
+          : process.env.DATABASE_DRIVER === 'supabase'
+            ? 'Supabase PostgreSQL'
+            : 'SQLite local',
     },
     places: { configured: has('GOOGLE_PLACES_API_KEY'), label: 'Google Places' },
     search: { configured: has('BRAVE_SEARCH_API_KEY'), label: 'Pesquisa complementar · Brave' },

@@ -402,7 +402,9 @@ export default function CompanyProfile({
             ) : (
               <>
                 <p className="muted">Número e autorização ainda precisam de confirmação.</p>
-                <button className="btn" onClick={compose} disabled={busy}>Conferir contato</button>
+                <button className="btn" onClick={compose} disabled={busy}>
+                  Conferir contato
+                </button>
               </>
             )}
             <button

@@ -84,6 +84,8 @@ Repositório: [AgenteProspec-o](https://github.com/cadueduardo068-ctrl/AgentePro
 
 ## Fluxo diário e biblioteca
 
+Para publicar mantendo APIs e persistência real, consulte [Cloudflare Workers + D1](docs/cloudflare.md). O projeto inclui build OpenNext, migração D1, prévia do Worker e testes de persistência no runtime `workerd`.
+
 A navegação principal reúne Visão geral, Encontrar empresas, Biblioteca, Conversas e Prévias de sites. As ferramentas avançadas permanecem em “Mais ferramentas”. Cada seção tem rota própria, incluindo `/library`, e pode ser atualizada sem perder os registros do servidor.
 
 No gerador comercial, “Conferir contato” permite confirmar o número e registrar a evidência de autorização sem exigir a verificação de todos os dados da empresa. A caixa de revisão do texto sozinha não substitui a autorização. O botão informa exatamente o que falta. A empresa continua provisória para os outros campos; abrir WhatsApp não confirma envio.

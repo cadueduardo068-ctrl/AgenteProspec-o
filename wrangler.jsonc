@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cadu-ai",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "cadu-ai" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cadu-ai",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations/d1",
+    },
+  ],
+  "vars": { "DATABASE_DRIVER": "d1", "APP_URL": "https://cadu-ai.example" },
+  "observability": { "enabled": true },
+}

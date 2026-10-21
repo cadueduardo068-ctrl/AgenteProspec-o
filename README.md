@@ -81,3 +81,11 @@ O servidor escuta loopback; use reverse proxy HTTPS. Configure backups criptogra
 Antes de cada push: testes, `npm run check:secrets`, `git diff --check` e revisão do diff. Somente `.env.example` com placeholders pode ser versionado; outros `.env`, dados locais, tokens, dependências e builds são ignorados. A varredura automática é complementar à revisão.
 
 Repositório: [AgenteProspec-o](https://github.com/cadueduardo068-ctrl/AgenteProspec-o). Etapas funcionais são enviadas à `main`, conforme autorização do proprietário.
+
+## Fluxo diário e biblioteca
+
+A navegação principal reúne Visão geral, Encontrar empresas, Biblioteca, Conversas e Prévias de sites. As ferramentas avançadas permanecem em “Mais ferramentas”. Cada seção tem rota própria, incluindo `/library`, e pode ser atualizada sem perder os registros do servidor.
+
+No gerador comercial, “Conferir contato” permite confirmar o número e registrar a evidência de autorização sem exigir a verificação de todos os dados da empresa. A caixa de revisão do texto sozinha não substitui a autorização. O botão informa exatamente o que falta. A empresa continua provisória para os outros campos; abrir WhatsApp não confirma envio.
+
+A biblioteca permite pesquisar e abrir empresas, editar os dados sem duplicação, acompanhar a etapa e excluir pelo fluxo de confirmação. Alterar o número invalida a autorização anterior. A persistência local permanece em `.local/cadu.sqlite`; atualizar a interface não apaga o banco.

@@ -28,6 +28,7 @@ export type Company = {
   source: string;
   address?: string;
   verified: boolean;
+  contactVerification?: { phone: string; at: string };
   services: string;
   stage: Stage;
   notes: string;

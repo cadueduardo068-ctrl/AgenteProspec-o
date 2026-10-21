@@ -5,6 +5,7 @@ import {
   MessagesSquare,
   MessageCircle,
   Code2,
+  Pencil,
   Sparkles,
   MapPin,
   Phone,
@@ -38,6 +39,7 @@ export default function CompanyProfile({
   compose,
   prompt,
   verify,
+  edit,
 }: {
   company: Company;
   data: WorkspaceData;
@@ -49,6 +51,7 @@ export default function CompanyProfile({
   compose: () => void;
   prompt: () => void;
   verify: () => void;
+  edit: () => void;
 }) {
   const [notes, setNotes] = useState(c.notes);
   const saved = useRef(c.notes);
@@ -60,7 +63,6 @@ export default function CompanyProfile({
   const [answer, setAnswer] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [consent, setConsent] = useState('');
   const [confirm, setConfirm] = useState<'delete' | 'optout' | null>(null);
   const savingPromise = useRef<Promise<boolean> | null>(null);
   const mounted = useRef(true);
@@ -186,6 +188,10 @@ export default function CompanyProfile({
           </div>
         </div>
         <div className="button-row">
+          <button className="btn" onClick={edit}>
+            <Pencil size={14} />
+            Editar empresa
+          </button>
           <button
             className="btn whatsapp"
             disabled={c.optedOut || c.archived}
@@ -395,28 +401,8 @@ export default function CompanyProfile({
               </div>
             ) : (
               <>
-                <p className="muted">
-                  Antes de iniciar contato comercial, registre autorização específica para este
-                  número.
-                </p>
-                <textarea
-                  aria-label="Evidência de consentimento"
-                  value={consent}
-                  maxLength={2000}
-                  onChange={(e) => setConsent(e.target.value)}
-                />
-                <button
-                  className="btn"
-                  disabled={busy || consent.trim().length < 15 || !phone.phone}
-                  onClick={() =>
-                    void action(`companies/${c.id}/consent`, 'POST', {
-                      evidence: consent,
-                      confirmed: true,
-                    })
-                  }
-                >
-                  Registrar autorização
-                </button>
+                <p className="muted">Número e autorização ainda precisam de confirmação.</p>
+                <button className="btn" onClick={compose} disabled={busy}>Conferir contato</button>
               </>
             )}
             <button

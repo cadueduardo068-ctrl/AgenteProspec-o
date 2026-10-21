@@ -105,7 +105,9 @@ export default function SitePromptEditor({
                   )}
                   <small>
                     {value
-                      ? company.verified
+                      ? company.verified ||
+                        (label === 'Telefone' &&
+                          company.contactVerification?.phone === company.phone)
                         ? 'Confirmado pelo administrador'
                         : 'Não confirmado'
                       : 'Pendente · não bloqueia a geração'}

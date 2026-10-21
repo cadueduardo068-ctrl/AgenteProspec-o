@@ -102,6 +102,40 @@ export function getCompany(s: State, id: string) {
   if (!c) throw new Error('Empresa não encontrada.');
   return c;
 }
+export function editCompany(s: State, id: string, input: unknown) {
+  const patch = z
+    .object({
+      name: z.string().trim().min(2).max(160),
+      niche: z.string().trim().max(100),
+      city: z.string().trim().max(100),
+      state: z.string().trim().max(2),
+      phone: z
+        .string()
+        .max(30)
+        .transform((v) => (v ? brazilianPhone(v) : '')),
+      address: z.string().max(1000),
+      website: url,
+      source: url,
+      services: z.string().max(3000),
+      verified: z.boolean(),
+    })
+    .parse(input);
+  const c = getCompany(s, id);
+  if (patch.verified && !patch.source)
+    throw new Error('Informe a fonte para marcar os dados como verificados.');
+  if (
+    patch.phone &&
+    s.companies.some((other) => other.id !== id && samePhone(other.phone, patch.phone))
+  )
+    throw new Error('Telefone associado a outra empresa.');
+  if (patch.phone !== c.phone) {
+    delete c.consent;
+    delete c.contactVerification;
+  }
+  Object.assign(c, patch, { updatedAt: new Date().toISOString() });
+  event(s, `${c.name}: informações editadas`, id, 'edição do administrador');
+  return c;
+}
 export function updateCompany(s: State, id: string, input: unknown) {
   const patch = z
     .object({
@@ -153,7 +187,7 @@ export function grantConsent(s: State, id: string, input: unknown) {
     .object({ evidence: z.string().trim().min(15).max(2000), confirmed: z.literal(true) })
     .parse(input);
   const c = getCompany(s, id);
-  if (!c.verified)
+  if (!c.verified && c.contactVerification?.phone !== c.phone)
     throw new Error(
       'Verifique as informações antes de autorizar contato. O prompt pode ser gerado sem verificação.',
     );
@@ -161,6 +195,26 @@ export function grantConsent(s: State, id: string, input: unknown) {
     throw new Error('Contato ausente ou na lista permanente de exclusão.');
   c.consent = { at: new Date().toISOString(), evidence: data.evidence, phone: c.phone };
   event(s, `${c.name}: autorização registrada`, id);
+}
+export function verifyContactDetails(s: State, id: string, input: unknown) {
+  const data = z
+    .object({
+      phone: z.string().max(30).transform(brazilianPhone),
+      phoneConfirmed: z.literal(true),
+      authorized: z.literal(true),
+      evidence: z.string().trim().min(15).max(2000),
+    })
+    .parse(input);
+  const c = getCompany(s, id);
+  if (c.optedOut || c.archived || s.exclusions.includes(data.phone))
+    throw new Error('Contato bloqueado ou arquivado.');
+  if (s.companies.some((other) => other.id !== id && samePhone(other.phone, data.phone)))
+    throw new Error('Este telefone pertence a outro cadastro. Abra a empresa já salva.');
+  c.phone = data.phone;
+  c.contactVerification = { phone: data.phone, at: new Date().toISOString() };
+  grantConsent(s, id, { confirmed: true, evidence: data.evidence });
+  event(s, `${c.name}: número comercial confirmado pelo administrador`, id, 'confirmação manual');
+  return c;
 }
 export function draftApproach(c: Company) {
   return `Olá, tudo bem? Estou falando com o responsável pela ${c.name}? Trabalho com criação de sites profissionais na CADU AI e gostaria de apresentar uma ideia para vocês. Posso explicar brevemente?`;

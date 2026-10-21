@@ -88,15 +88,15 @@ export default function ResultCards({
                 : 'Ausência aparente de site no perfil'}
           </p>
         </div>
-        <div className="result-reasons">
-          <strong>{opportunity.label}</strong>
+        <details className="result-reasons">
+          <summary>{opportunity.label} · ver estimativa</summary>
           {opportunity.reasons.map((r) => (
             <p key={r.label}>
               <Check size={12} />
               {r.label}
             </p>
           ))}
-        </div>
+        </details>
         <div className="result-links">
           <a className="text-btn" href={maps} target="_blank" rel="noreferrer">
             Google Maps

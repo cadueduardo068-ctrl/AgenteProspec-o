@@ -54,7 +54,15 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { stages, score, type State, type Company, type Analysis, jobStages } from '@/lib/domain';
+import {
+  stages,
+  score,
+  websitePresence,
+  type State,
+  type Company,
+  type Analysis,
+  jobStages,
+} from '@/lib/domain';
 import type { metrics } from '@/lib/metrics';
 import type { integrations } from '@/lib/integrations';
 import NicheSelector from './niche-selector';
@@ -62,9 +70,11 @@ import CitySelector from './city-selector';
 import ContactComposer from './contact-composer';
 import SitePromptEditor from './site-prompt-editor';
 import CompanyProfile from './company-profile';
+import CompanyEditor from './company-editor';
 import ContactedCompanies from './contacted-companies';
 import ResultCards, { type ResultAction, type PlaceResult } from './result-cards';
 import type { Municipality } from '@/lib/localities';
+import { sectionRoutes, sectionForPath } from '@/lib/navigation';
 
 type Data = Omit<State, 'exclusions' | 'webhookIds' | 'rateLimits'> & {
   metrics: ReturnType<typeof metrics>;
@@ -81,13 +91,13 @@ type Place = {
 };
 const nav = [
   { id: 'overview', title: 'Visão geral', icon: LayoutDashboard },
-  { id: 'prospect', title: 'Central de Prospecção', icon: Radar },
-  { id: 'companies', title: 'Empresas encontradas', icon: Building2 },
+  { id: 'prospect', title: 'Encontrar empresas', icon: Radar },
+  { id: 'companies', title: 'Biblioteca', icon: Building2 },
   { id: 'opportunities', title: 'Oportunidades', icon: Sparkles },
   { id: 'queue', title: 'Fila de contatos', icon: ListTodo },
-  { id: 'contacted', title: 'Empresas contatadas', icon: Users },
+  { id: 'contacted', title: 'Conversas', icon: Users },
   { id: 'assistant', title: 'Assistente Comercial', icon: MessagesSquare },
-  { id: 'sites', title: 'Sites gerados', icon: PanelsTopLeft },
+  { id: 'sites', title: 'Prévias de sites', icon: PanelsTopLeft },
   { id: 'funnel', title: 'Funil de vendas', icon: GitBranch },
   { id: 'reports', title: 'Relatórios', icon: ChartNoAxesCombined },
   { id: 'settings', title: 'Configurações', icon: Settings },
@@ -182,8 +192,14 @@ function Modal({
     </div>
   );
 }
-export default function Dashboard({ initialCompanyId }: { initialCompanyId?: string }) {
-  const [tab, setTab] = useState(initialCompanyId ? 'companies' : 'overview');
+export default function Dashboard({
+  initialCompanyId,
+  initialTab,
+}: {
+  initialCompanyId?: string;
+  initialTab?: string;
+}) {
+  const [tab, setTab] = useState(initialTab || (initialCompanyId ? 'companies' : 'overview'));
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -191,20 +207,24 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
   const [selected, setSelected] = useState<string | null>(initialCompanyId || null);
   function select(id: string | null) {
     setSelected(id);
-    window.history.pushState({}, '', id ? `/companies/${id}` : '/');
+    window.history.pushState({}, '', id ? `/companies/${id}` : sectionRoutes[tab] || '/');
   }
   useEffect(() => {
-    const update = () =>
+    const update = () => {
+      const section = sectionForPath(window.location.pathname);
+      if (section) setTab(section);
       setSelected(
         window.location.pathname.startsWith('/companies/')
           ? window.location.pathname.split('/')[2]
           : null,
       );
+    };
     window.addEventListener('popstate', update);
     return () => window.removeEventListener('popstate', update);
   }, []);
   const [add, setAdd] = useState(false);
   const [verification, setVerification] = useState<Company | null>(null);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [composeId, setComposeId] = useState<string | null>(null);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
@@ -212,7 +232,8 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
   const [busy, setBusy] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [help, setHelp] = useState(false);
-  const [view, setView] = useState('cards');
+  const [view, setView] = useState('table');
+  const [showFilters, setShowFilters] = useState(false);
   const [stageFilter, setStageFilter] = useState('');
   const [nicheFilter, setNicheFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
@@ -258,7 +279,8 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
   }
   function navigate(id: string) {
     setTab(id);
-    if (selected) select(null);
+    setSelected(null);
+    window.history.pushState({}, '', sectionRoutes[id] || '/');
     setSidebar(false);
     setFilter('');
   }
@@ -269,7 +291,7 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
         (c) =>
           !!c.archived === archived &&
           `${c.name} ${c.city} ${c.niche}`.toLowerCase().includes(filter.toLowerCase()) &&
-          (!noSite || !c.website) &&
+          (!noSite || websitePresence(c.website) !== 'website') &&
           (!stageFilter || c.stage === stageFilter) &&
           (!nicheFilter || c.niche === nicheFilter) &&
           (!cityFilter || c.city === cityFilter) &&
@@ -302,7 +324,11 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
         <span className="nav-label">WORKSPACE</span>
         <nav>
           {nav
-            .filter((n) => n.id !== 'settings')
+            .filter((n) =>
+              ['overview', 'prospect', 'companies', 'contacted', 'sites', 'inspirations'].includes(
+                n.id,
+              ),
+            )
             .map((n) => (
               <button
                 key={n.id}
@@ -315,9 +341,36 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
                   !!data?.messages.filter((m) => m.direction === 'in').length && (
                     <b>{data.messages.filter((m) => m.direction === 'in').length}</b>
                   )}
-                {n.id === 'prospect' && <span className="nav-new">NOVO</span>}
               </button>
             ))}
+          <details className="nav-more">
+            <summary>
+              Mais ferramentas <ChevronDown size={13} />
+            </summary>
+            {nav
+              .filter(
+                (n) =>
+                  ![
+                    'overview',
+                    'prospect',
+                    'companies',
+                    'contacted',
+                    'sites',
+                    'inspirations',
+                    'settings',
+                  ].includes(n.id),
+              )
+              .map((n) => (
+                <button
+                  key={n.id}
+                  className={`nav-item ${tab === n.id ? 'active' : ''}`}
+                  onClick={() => navigate(n.id)}
+                >
+                  <n.icon size={17} />
+                  <span>{n.title}</span>
+                </button>
+              ))}
+          </details>
         </nav>
         <div className="sidebar-bottom">
           <div className="assistant-card">
@@ -418,22 +471,19 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">
-                    {tab === 'overview'
-                      ? 'SEU CENTRO DE CRESCIMENTO'
-                      : 'INTELIGÊNCIA EM CADA OPORTUNIDADE'}
+                    {tab === 'overview' ? 'CENTRAL DE PROSPECÇÃO' : 'CADU AI'}
                   </div>
                   <h1>
                     {tab === 'overview' ? 'Visão geral' : nav.find((n) => n.id === tab)?.title}
-                    <span className="title-dot">.</span>
                   </h1>
                   <p>
                     {
                       (
                         {
-                          overview: 'Um olhar claro sobre suas oportunidades e o que vem a seguir.',
+                          overview: 'Seu acompanhamento comercial, em um só lugar.',
                           prospect:
                             'Encontre empresas que podem se beneficiar de uma presença digital melhor.',
-                          companies: 'Cada empresa é o começo de uma nova conexão.',
+                          companies: 'Empresas salvas, contatos e próximos passos.',
                           opportunities:
                             'Priorize com contexto. A pontuação é uma estimativa, não uma promessa.',
                           queue:
@@ -533,59 +583,69 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
                           Cadastrar empresa
                         </button>
                       </div>
-                      <div className="filters-extra">
-                        <select
-                          aria-label="Filtrar por etapa"
-                          value={stageFilter}
-                          onChange={(e) => setStageFilter(e.target.value)}
-                        >
-                          <option value="">Todas as etapas</option>
-                          {stages.map((s) => (
-                            <option key={s}>{s}</option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label="Filtrar por nicho"
-                          value={nicheFilter}
-                          onChange={(e) => setNicheFilter(e.target.value)}
-                        >
-                          <option value="">Todos os nichos</option>
-                          {[...new Set(data.companies.map((c) => c.niche))].map((s) => (
-                            <option key={s}>{s}</option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label="Filtrar por cidade"
-                          value={cityFilter}
-                          onChange={(e) => setCityFilter(e.target.value)}
-                        >
-                          <option value="">Todas as cidades</option>
-                          {[...new Set(data.companies.map((c) => c.city))].map((s) => (
-                            <option key={s}>{s}</option>
-                          ))}
-                        </select>
-                        <select
-                          aria-label="Pontuação mínima"
-                          value={minScore}
-                          onChange={(e) => setMinScore(Number(e.target.value))}
-                        >
-                          <option value={0}>Qualquer pontuação</option>
-                          <option value={40}>40+ pontos</option>
-                          <option value={70}>70+ pontos</option>
-                        </select>
-                        <button
-                          className={`btn ${archived ? 'selected' : ''}`}
-                          onClick={() => setArchived(!archived)}
-                        >
-                          Arquivadas
-                        </button>
-                        <button
-                          className="btn"
-                          onClick={() => setView(view === 'cards' ? 'table' : 'cards')}
-                        >
-                          {view === 'cards' ? 'Ver tabela' : 'Ver cards'}
-                        </button>
-                      </div>
+                      <button
+                        className="text-btn library-filter-toggle"
+                        aria-expanded={showFilters}
+                        onClick={() => setShowFilters(!showFilters)}
+                      >
+                        <Filter size={14} />
+                        Filtros e visualização
+                      </button>
+                      {showFilters && (
+                        <div className="filters-extra">
+                          <select
+                            aria-label="Filtrar por etapa"
+                            value={stageFilter}
+                            onChange={(e) => setStageFilter(e.target.value)}
+                          >
+                            <option value="">Todas as etapas</option>
+                            {stages.map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                          <select
+                            aria-label="Filtrar por nicho"
+                            value={nicheFilter}
+                            onChange={(e) => setNicheFilter(e.target.value)}
+                          >
+                            <option value="">Todos os nichos</option>
+                            {[...new Set(data.companies.map((c) => c.niche))].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                          <select
+                            aria-label="Filtrar por cidade"
+                            value={cityFilter}
+                            onChange={(e) => setCityFilter(e.target.value)}
+                          >
+                            <option value="">Todas as cidades</option>
+                            {[...new Set(data.companies.map((c) => c.city))].map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                          </select>
+                          <select
+                            aria-label="Pontuação mínima"
+                            value={minScore}
+                            onChange={(e) => setMinScore(Number(e.target.value))}
+                          >
+                            <option value={0}>Qualquer pontuação</option>
+                            <option value={40}>40+ pontos</option>
+                            <option value={70}>70+ pontos</option>
+                          </select>
+                          <button
+                            className={`btn ${archived ? 'selected' : ''}`}
+                            onClick={() => setArchived(!archived)}
+                          >
+                            Arquivadas
+                          </button>
+                          <button
+                            className="btn"
+                            onClick={() => setView(view === 'cards' ? 'table' : 'cards')}
+                          >
+                            {view === 'cards' ? 'Ver tabela' : 'Ver cards'}
+                          </button>
+                        </div>
+                      )}
                       {view === 'table' ? (
                         <CompanyTable companies={visible} select={select} />
                       ) : (
@@ -703,6 +763,14 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
           </button>
         </div>
       )}
+      {editingCompany && (
+        <CompanyEditor
+          company={editingCompany}
+          close={() => setEditingCompany(null)}
+          action={action}
+          busy={busy}
+        />
+      )}
       {(add || verification) && (
         <CompanyForm
           initial={verification || undefined}
@@ -746,6 +814,7 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
         <CompanyProfile
           key={`profile-${company.id}`}
           company={company}
+          edit={() => setEditingCompany(company)}
           verify={() => setVerification(company)}
           data={data}
           refresh={refresh}
@@ -807,312 +876,113 @@ function Overview({
   select: (v: string) => void;
 }) {
   const m = data.metrics;
-  const configured = Object.entries(data.integrations).filter(
-    ([key, v]) => key !== 'github' && v.configured,
-  ).length;
   const cards = [
-    {
-      label: 'Empresas encontradas',
-      value: m.companies,
-      icon: Building2,
-      color: 'blue',
-      sub: 'Cadastradas no seu CRM',
-    },
-    {
-      label: 'Oportunidades qualificadas',
-      value: m.qualified,
-      icon: Globe,
-      color: 'cyan',
-      sub: 'Estimativa · pontuação de 70 ou mais',
-    },
-    {
-      label: 'Contatos preparados',
-      value: m.prepared,
-      icon: FileText,
-      color: 'green',
-      sub: 'Rascunhos revisáveis, sem envio',
-    },
-    {
-      label: 'Envios confirmados hoje',
-      value: m.sentToday,
-      icon: Send,
-      color: 'violet',
-      sub: 'Confirmados manualmente por você',
-    },
-    {
-      label: 'Clientes interessados',
-      value: m.interested,
-      icon: Users,
-      color: 'blue',
-      sub: 'Relacionamentos em andamento',
-    },
-    {
-      label: 'Demonstrações geradas',
-      value: m.demos,
-      icon: PanelsTopLeft,
-      color: 'cyan',
-      sub: 'Prontas para revisão ou aprovadas',
-    },
-    {
-      label: 'Negociações abertas',
-      value: m.proposals,
-      icon: FileText,
-      color: 'amber',
-      sub: 'Etapas comerciais confirmadas',
-    },
-    {
-      label: 'Vendas concluídas',
-      value: m.sales,
-      icon: Trophy,
-      color: 'green',
-      sub: 'Oportunidades convertidas',
-    },
-    {
-      label: 'Respostas registradas',
-      value: m.responses,
-      icon: MessagesSquare,
-      color: 'blue',
-      sub: 'Análises aprovadas por você',
-    },
-    {
-      label: 'Demonstrações solicitadas',
-      value: m.requested,
-      icon: Sparkles,
-      color: 'cyan',
-      sub: 'Solicitações e tarefas reais',
-    },
-  ];
+    ['Empresas salvas', m.companies, 'companies'],
+    ['Contatos confirmados', m.contacted, 'contacted'],
+    ['Respostas', m.responses, 'contacted'],
+    ['Interessados', m.interested, 'funnel'],
+    ['Prévias prontas', m.demos, 'sites'],
+  ] as const;
+  const pending = data.tasks
+    .filter((t) => !t.done)
+    .slice()
+    .sort((a, b) => (a.dueAt || '9999').localeCompare(b.dueAt || '9999'))
+    .slice(0, 3);
+  const funnel = [
+    ['Empresas', m.companies],
+    ['Qualificadas', m.qualified],
+    ['Contatadas', m.contacted],
+    ['Interessadas', m.interested],
+    ['Vendas', m.sales],
+  ] as const;
   return (
-    <>
-      <section className="welcome-banner">
-        <div className="banner-grid" />
-        <div className="banner-copy">
-          <Badge tone="blue">
-            <Sparkles size={12} />
-            PROSPECÇÃO COM INTELIGÊNCIA
-          </Badge>
-          <h2>
-            Mais conexões.
-            <br />
-            <span>Seu próximo grande projeto.</span>
-          </h2>
-          <p>
-            Descubra empresas, encontre oportunidades e crie
-            <br className="desktop-break" /> experiências digitais que fazem a diferença.
-          </p>
-          <button className="btn primary" onClick={() => navigate('prospect')}>
-            Encontrar oportunidades
-            <ArrowRight size={16} />
+    <div className="overview-compact stack">
+      <div className="compact-stats">
+        {cards.map(([label, value, section]) => (
+          <button className="panel compact-stat" key={label} onClick={() => navigate(section)}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </button>
+        ))}
+      </div>
+      <section className="panel followup-panel">
+        <div className="panel-heading">
+          <h2>Acompanhamento</h2>
+          <button className="text-btn" onClick={() => navigate('companies')}>
+            Abrir biblioteca <ArrowUpRight size={13} />
           </button>
         </div>
-        <div className="radar-art" aria-hidden="true">
-          <div className="orbit o1" />
-          <div className="orbit o2" />
-          <div className="orbit o3" />
-          <div className="radar-axis" />
-          <span className="radar-point p1">
-            <Building2 size={18} />
-          </span>
-          <span className="radar-point p2">
-            <Globe size={17} />
-          </span>
-          <span className="radar-point p3">
-            <Target size={17} />
-          </span>
-          <span className="radar-core">
-            <Zap size={36} fill="currentColor" />
-          </span>
-          <div className="radar-caption">
-            <i />
-            Conectando possibilidades
-          </div>
-        </div>
-      </section>
-      <div className="section-heading">
-        <h2>Seu negócio em números</h2>
-        <span>
-          <i className="status-dot" />
-          Dados reais do workspace
-        </span>
-      </div>
-      <section className="metric-grid">
-        {cards.map((c) => (
-          <article className="metric-card" key={c.label}>
-            <div className="metric-top">
-              <span>{c.label}</span>
-              <div className={`metric-icon ${c.color}`}>
-                <c.icon size={17} />
+        {pending.length ? (
+          pending.map((t) => (
+            <div className="followup-row" key={t.id}>
+              <div>
+                <strong>
+                  {data.companies.find((c) => c.id === t.companyId)?.name || 'Empresa salva'}
+                </strong>
+                <p>{t.title}</p>
+                <small>{t.dueAt ? date(t.dueAt) : 'Sem data definida'}</small>
               </div>
-            </div>
-            <strong className="metric-value">{c.value.toLocaleString('pt-BR')}</strong>
-            <small>{c.sub}</small>
-          </article>
-        ))}
-      </section>
-      <div className="dashboard-columns">
-        <section className="panel performance-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Desempenho da prospecção</h2>
-              <p>O ritmo das suas conexões ao longo do tempo</p>
-            </div>
-            <Badge>
-              Últimos 14 dias <ChevronDown size={12} />
-            </Badge>
-          </div>
-          <Performance data={data} />
-          <div className="chart-legend">
-            <span>
-              <i className="legend-blue" />
-              Empresas cadastradas
-            </span>
-            <span>
-              <i className="legend-cyan" />
-              Mensagens enviadas
-            </span>
-          </div>
-        </section>
-        <section className="panel funnel-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Funil comercial</h2>
-              <p>Cada etapa conta uma história</p>
-            </div>
-            <button
-              className="icon-btn"
-              aria-label="Abrir funil"
-              onClick={() => navigate('funnel')}
-            >
-              <ArrowUpRight size={18} />
-            </button>
-          </div>
-          <div className="funnel-bars">
-            {[
-              { label: 'Empresas no CRM', value: m.companies },
-              { label: 'Contatos autorizados', value: m.authorized },
-              { label: 'Interessadas', value: m.interested },
-              { label: 'Demonstrações prontas', value: m.demos },
-              { label: 'Vendas concluídas', value: m.sales },
-            ].map((item, i) => (
-              <div
-                className={`funnel-row f${i}`}
-                key={item.label}
-                style={{ width: `${100 - i * 8}%` }}
-              >
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-          <p className="funnel-note">
-            <Target size={13} />
-            Construa o próximo passo, uma conexão por vez.
-          </p>
-        </section>
-      </div>
-      <div className="dashboard-columns bottom-columns">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Próximas oportunidades</h2>
-              <p>Empresas com maior potencial estimado</p>
-            </div>
-            <button className="text-btn" onClick={() => navigate('opportunities')}>
-              Ver todas
-              <ArrowRight size={14} />
-            </button>
-          </div>
-          {!data.companies.length ? (
-            <Empty
-              title="Sua próxima oportunidade está por vir"
-              text="Inicie uma prospecção e cadastre empresas verificadas para começar."
-              action={
-                <button className="text-btn" onClick={() => navigate('prospect')}>
-                  Fazer primeira busca
-                  <ArrowRight size={14} />
-                </button>
-              }
-            />
-          ) : (
-            <div className="compact-companies">
-              {[...data.companies]
-                .sort((a, b) => score(b).value - score(a).value)
-                .slice(0, 4)
-                .map((c) => (
-                  <button key={c.id} onClick={() => select(c.id)}>
-                    <span className="company-initial">{c.name.slice(0, 2).toUpperCase()}</span>
-                    <div>
-                      <strong>{c.name}</strong>
-                      <small>
-                        {c.niche} · {c.city}
-                      </small>
-                    </div>
-                    <Badge tone={score(c).value >= 70 ? 'green' : 'blue'}>
-                      {score(c).value} pontos
-                    </Badge>
-                    <ChevronRight size={15} />
-                  </button>
-                ))}
-            </div>
-          )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Atividades recentes</h2>
-              <p>O que está acontecendo no workspace</p>
-            </div>
-            <Clock3 size={17} className="muted" />
-          </div>
-          <Activity data={data.events.slice(0, 4)} />
-        </section>
-      </div>
-      <section className="panel" style={{ marginBottom: 20 }}>
-        <div className="panel-heading">
-          <div>
-            <h2>Próximas tarefas</h2>
-            <p>Ações registradas no seu CRM</p>
-          </div>
-          <Badge>{data.tasks.filter((t) => !t.done).length} pendentes</Badge>
-        </div>
-        <div className="compact-companies">
-          {data.tasks
-            .filter((t) => !t.done)
-            .slice(0, 5)
-            .map((t) => (
-              <button key={t.id} onClick={() => select(t.companyId)}>
-                <ListTodo size={16} />
-                <div>
-                  <strong>{t.title}</strong>
-                  <small>{data.companies.find((c) => c.id === t.companyId)?.name}</small>
-                </div>
-                <ArrowRight size={14} />
+              <button className="btn" onClick={() => select(t.companyId)}>
+                Acompanhar <ArrowRight size={13} />
               </button>
-            ))}
-        </div>
-        {!data.tasks.some((t) => !t.done) && (
-          <p className="muted" style={{ padding: 20 }}>
-            Nenhuma tarefa pendente. Adicione próximos passos no cadastro de uma empresa.
-          </p>
+            </div>
+          ))
+        ) : (
+          <div className="compact-empty">
+            <ListTodo size={18} />
+            <p>Nenhuma ação pendente.</p>
+            <button className="text-btn" onClick={() => navigate('prospect')}>
+              Encontrar empresas
+            </button>
+          </div>
         )}
       </section>
-      <div className="workspace-strip">
-        <div>
-          <ShieldCheck size={20} />
-          <div>
-            <strong>Relacionamentos com responsabilidade</strong>
-            <span>
-              {m.contactsToday} de {m.dailyLimit} contatos confirmados hoje · {m.remaining} contatos
-              restantes
-            </span>
+      <div className="overview-panels">
+        <section className="panel">
+          <div className="panel-heading">
+            <h2>Funil comercial</h2>
+            <button className="text-btn" onClick={() => navigate('funnel')}>
+              Ver etapas
+            </button>
           </div>
-        </div>
-        <button onClick={() => navigate('settings')}>
-          {configured}/7 integrações configuradas
-          <ArrowRight size={14} />
-        </button>
+          <div className="compact-funnel">
+            {funnel.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <div className="funnel-track">
+                  <i
+                    style={{
+                      width: `${m.companies ? Math.min(100, (value / m.companies) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+                <strong>{value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-heading">
+            <h2>Últimos 14 dias</h2>
+            <span className="muted">Empresas e envios confirmados</span>
+          </div>
+          <Performance data={data} />
+        </section>
       </div>
-    </>
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Atividades recentes</h2>
+          <span className="muted">Somente ações registradas</span>
+        </div>
+        <Activity data={data.events.slice(0, 5)} />
+      </section>
+      <div className="compact-footer">
+        <span>
+          {m.contactsToday} de {m.dailyLimit} novos contatos confirmados hoje
+        </span>
+        <span>Envio manual pelo WhatsApp</span>
+      </div>
+    </div>
   );
 }
 function Performance({ data }: { data: Data }) {
@@ -1233,7 +1103,11 @@ function Companies({ companies, select }: { companies: Company[]; select: (v: st
             </p>
             <div className="company-website">
               <Globe size={14} />
-              {c.website ? 'Site informado' : 'Site não identificado'}
+              {websitePresence(c.website) === 'website'
+                ? 'Site informado'
+                : websitePresence(c.website) === 'social'
+                  ? 'Rede social ou contato'
+                  : 'Site não identificado'}
             </div>
             <div className="company-card-bottom">
               <Badge tone={c.optedOut ? 'red' : c.consent ? 'green' : ''}>
@@ -1562,7 +1436,13 @@ function CompanyTable({
               <td>
                 {c.niche} · {c.city}
               </td>
-              <td>{c.website ? 'Site identificado' : 'Site desconhecido'}</td>
+              <td>
+                {websitePresence(c.website) === 'website'
+                  ? 'Site informado'
+                  : websitePresence(c.website) === 'social'
+                    ? 'Rede social ou contato'
+                    : 'Não identificado'}
+              </td>
               <td>{score(c).value}/100</td>
               <td>
                 <Badge>{c.stage}</Badge>

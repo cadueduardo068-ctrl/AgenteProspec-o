@@ -16,6 +16,8 @@ import {
   getCompany,
   updateCompany,
   grantConsent,
+  verifyContactDetails,
+  editCompany,
   optOut,
   draftApproach,
 } from '@/lib/crm';
@@ -121,6 +123,14 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
     }
     if (parts[0] === 'companies' && parts[1]) {
       const id = parts[1];
+      if (parts.length === 2 && method === 'PUT') {
+        const input = await body(req);
+        return json(await db.mutate((s) => editCompany(s, id, input)));
+      }
+      if (parts[2] === 'contact-details' && method === 'POST') {
+        const input = await body(req);
+        return json(await db.mutate((s) => verifyContactDetails(s, id, input)));
+      }
       if (parts.length === 2 && method === 'PATCH') {
         const input = await body(req);
         return json(await db.mutate((s) => updateCompany(s, id, input)));
@@ -257,4 +267,4 @@ export async function body(req: Request) {
   if (Buffer.byteLength(raw) > 64_000) throw new Error('Solicitação muito grande.');
   return JSON.parse(raw);
 }
-export { handle as GET, handle as POST, handle as PATCH, handle as DELETE };
+export { handle as GET, handle as POST, handle as PATCH, handle as PUT, handle as DELETE };

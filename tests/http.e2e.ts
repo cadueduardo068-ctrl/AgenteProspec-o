@@ -243,6 +243,22 @@ test(
         })
       ).json();
       assert.equal(provisional.verified, false);
+      for (const section of ['library', 'prospect', 'conversations']) {
+        assert.equal(
+          (await fetch(`${base}/${section}`, { headers: { Cookie: cookie } })).status,
+          200,
+        );
+      }
+      const verifiedContact = await req(`companies/${provisional.id}/contact-details`, 'POST', {
+        phone: '5514988888888',
+        phoneConfirmed: true,
+        authorized: true,
+        evidence: 'Autorização fictícia somente para testar o fluxo HTTP',
+      });
+      assert.equal(verifiedContact.status, 200);
+      const contactCompany = await verifiedContact.json();
+      assert.equal(contactCompany.verified, false);
+      assert.equal(contactCompany.consent.phone, '5514988888888');
       const incompleteMessage = await (
         await req('commercial/message', 'POST', {
           companyId: provisional.id,

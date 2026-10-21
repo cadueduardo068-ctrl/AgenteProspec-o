@@ -72,10 +72,22 @@ export default function ContactComposer({
   const once = useRef(false);
   const variant = useRef(0);
   const [evidence, setEvidence] = useState('');
+  const [phoneDraft, setPhoneDraft] = useState(c.phone);
+  const [phoneConfirmed, setPhoneConfirmed] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
   const [working, setWorking] = useState(false);
   const [opened, setOpened] = useState<{ id: string; url: string } | null>(null);
   const [approved, setApproved] = useState(false);
   const phone = whatsappPhone(c.phone);
+  const verifiedNumber = c.verified || c.contactVerification?.phone === c.phone;
+  const hasAuthorization = !!c.consent && c.consent.phone === c.phone && verifiedNumber;
+  const missingSteps = [
+    !phone.phone && 'Informe um número válido',
+    !verifiedNumber && 'Confirme o número',
+    !hasAuthorization && 'Registre a autorização',
+    !approved && 'Revise o texto',
+    /\[PENDENTE:/i.test(text) && 'Resolva a pendência do texto',
+  ].filter(Boolean);
   const pending = data.contacts.find((item) => item.companyId === c.id && item.status === 'aberto');
   const contacted = data.contacts.some(
     (item) => item.companyId === c.id && item.status === 'confirmado',
@@ -305,44 +317,73 @@ export default function ContactComposer({
             Copiar mensagem
           </button>
         </div>
-        {!c.verified && (
-          <div className="notice amber">
-            Dados provisórios. Você pode gerar, copiar e salvar a mensagem. Para abrir a conversa,
-            verifique as informações no perfil e registre a autorização de contato.
-          </div>
-        )}
-        {!c.consent && !blocked && c.verified && (
-          <div className="consent-box stack">
-            <h3>Autorização de contato</h3>
-            <p className="muted">
-              Número público não equivale a consentimento. Informe quando, por qual canal e para
-              qual finalidade a empresa autorizou o contato.
-            </p>
+        {!hasAuthorization && !blocked && (
+          <section className="contact-validation stack">
+            <h3>Conferir contato</h3>
             <label>
-              Evidência de autorização
+              Número com DDD
+              <input
+                aria-label="Número para WhatsApp"
+                type="tel"
+                value={phoneDraft}
+                maxLength={30}
+                onChange={(e) => {
+                  setPhoneDraft(e.target.value);
+                  setPhoneConfirmed(false);
+                }}
+              />
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={phoneConfirmed}
+                onChange={(e) => setPhoneConfirmed(e.target.checked)}
+              />
+              Confirmei que este número pertence à empresa.
+            </label>
+            <label>
+              Como o contato foi autorizado?
               <textarea
+                aria-label="Evidência de autorização"
+                placeholder="Quando, por qual canal e para qual finalidade houve autorização."
                 value={evidence}
                 minLength={15}
                 maxLength={2000}
                 onChange={(e) => setEvidence(e.target.value)}
               />
             </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={authorized}
+                onChange={(e) => setAuthorized(e.target.checked)}
+              />
+              Confirmo que tenho autorização para este contato comercial.
+            </label>
             <button
               className="btn"
-              disabled={busy || evidence.trim().length < 15 || !phone.phone}
-              onClick={() =>
-                void action(
-                  `companies/${c.id}/consent`,
-                  'POST',
-                  { evidence, confirmed: true },
-                  'Autorização registrada.',
-                )
+              disabled={
+                busy ||
+                working ||
+                !phoneConfirmed ||
+                !authorized ||
+                evidence.trim().length < 15 ||
+                !whatsappPhone(phoneDraft).phone
               }
+              onClick={async () => {
+                const result = await action(
+                  `companies/${c.id}/contact-details`,
+                  'POST',
+                  { phone: phoneDraft, phoneConfirmed: true, authorized: true, evidence },
+                  'Número e autorização registrados.',
+                );
+                if (result) setPhoneDraft(String(result.phone));
+              }}
             >
-              <ShieldCheck size={15} />
-              Registrar autorização
+              <ShieldCheck size={14} />
+              Confirmar número e autorização
             </button>
-          </div>
+          </section>
         )}
         <label className="checkbox">
           <input
@@ -350,7 +391,7 @@ export default function ContactComposer({
             checked={approved}
             onChange={(e) => setApproved(e.target.checked)}
           />
-          Revisei o destinatário, a autorização e o texto. Vou enviar pessoalmente.
+          Revisei o texto e o destinatário. O envio será manual.
         </label>
         <button
           className="btn whatsapp"
@@ -360,8 +401,7 @@ export default function ContactComposer({
             !approved ||
             !text.trim() ||
             !phone.phone ||
-            !c.verified ||
-            !c.consent ||
+            !hasAuthorization ||
             blocked ||
             /\[PENDENTE:/.test(text)
           }
@@ -370,6 +410,11 @@ export default function ContactComposer({
           <MessagesSquare size={17} />
           Abrir WhatsApp
         </button>
+        {!!missingSteps.length && !blocked && (
+          <small className="contact-missing" role="status">
+            Falta: {missingSteps.join(' · ')}.
+          </small>
+        )}
         {(opened || pending) && (
           <div className="notice amber stack">
             <strong>WhatsApp aberto — envio não confirmado</strong>

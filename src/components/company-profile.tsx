@@ -38,6 +38,7 @@ export default function CompanyProfile({
   busy,
   compose,
   prompt,
+  inspiration,
   verify,
   edit,
 }: {
@@ -50,6 +51,7 @@ export default function CompanyProfile({
   busy: boolean;
   compose: () => void;
   prompt: () => void;
+  inspiration: () => void;
   verify: () => void;
   edit: () => void;
 }) {
@@ -204,6 +206,10 @@ export default function CompanyProfile({
           <button className="btn primary" disabled={c.optedOut || c.archived} onClick={prompt}>
             <Code2 size={16} />
             Gerar prompt do site
+          </button>
+          <button className="btn" disabled={c.optedOut || c.archived} onClick={inspiration}>
+            <Sparkles size={14} />
+            Escolher inspiração para o site
           </button>
           {!c.verified && (
             <button className="btn" onClick={verify}>

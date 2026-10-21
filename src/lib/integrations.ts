@@ -1,3 +1,4 @@
+import { inspirationPrompt } from './inspirations';
 import { searchPlaces } from './prospect';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -621,9 +622,16 @@ export async function integrationRoute(
   }
   if (route === 'jobs' && req.method === 'POST') {
     const data = z
-      .object({ companyId: z.string().uuid(), confirmed: z.literal(true) })
+      .object({
+        companyId: z.string().uuid(),
+        confirmed: z.literal(true),
+        inspirationId: z.string().max(100).optional(),
+      })
       .parse(await input(req));
-    // Queue is useful even before an isolated provider is configured. No fake completion.
+    if (data.inspirationId && !integrations().generator.configured)
+      throw new Error(
+        'Configure o serviço de geração de código antes de gerar um projeto inspirado.',
+      );
     const job = await db.mutate((s) => {
       const c = getCompany(s, data.companyId);
       if (c.optedOut) throw new Error('Empresa recusou contato.');
@@ -636,9 +644,30 @@ export async function integrationRoute(
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         attempts: 0,
-        brief: verifiedBrief(c),
+        brief: {
+          ...verifiedBrief(c),
+          ...(data.inspirationId
+            ? {
+                inspirationId: data.inspirationId,
+                designPrompt: inspirationPrompt(
+                  s.inspirations.find((r) => r.id === data.inspirationId) ||
+                    (() => {
+                      throw new Error('Inspiração não encontrada.');
+                    })(),
+                ),
+              }
+            : {}),
+        },
       };
       s.jobs.push(j);
+      if (data.inspirationId)
+        s.inspirationUses.unshift({
+          id: crypto.randomUUID(),
+          inspirationId: data.inspirationId,
+          companyId: c.id,
+          jobId: j.id,
+          at: j.createdAt,
+        });
       c.stage = 'Site em geração';
       event(s, `${c.name}: geração solicitada`, c.id);
       return j;

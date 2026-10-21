@@ -3678,3 +3678,173 @@ td {
 .company-profile-heading .button-row {
   gap: 8px;
 }
+.inspiration-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.inspiration-filters label {
+  flex: 1;
+  min-width: 150px;
+}
+.inspiration-filters input,
+.inspiration-filters select {
+  width: 100%;
+}
+.inspiration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.inspiration-card {
+  border: 1px solid var(--border, #273349);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--panel, #111b2e);
+  transition:
+    transform 0.2s,
+    border-color 0.2s;
+}
+.inspiration-card:hover {
+  transform: translateY(-3px);
+  border-color: #4e6587;
+}
+.inspiration-cover {
+  width: 100%;
+  height: 240px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid #273349;
+  background: #0a1221;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
+.inspiration-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.inspiration-placeholder {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(140deg, #101a2b, #15283b);
+  color: #b4c2d6;
+}
+.inspiration-placeholder strong {
+  font-size: 26px;
+  font-weight: 500;
+  color: #e2eaf7;
+}
+.inspiration-placeholder span {
+  font-size: 12px;
+}
+.inspiration-card-body {
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+}
+.inspiration-card-body h2 {
+  font-size: 19px;
+}
+.inspiration-card-body p {
+  color: #aebad0;
+  min-height: 48px;
+  line-height: 1.6;
+}
+.inspiration-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.inspiration-detail-image {
+  margin: 0;
+}
+.inspiration-detail-image img {
+  max-height: 360px;
+  width: 100%;
+  object-fit: contain;
+  background: #090d16;
+  border-radius: 10px;
+}
+.inspiration-detail-image figcaption {
+  font-size: 12px;
+  color: #a9b6cb;
+  margin-top: 10px;
+}
+.inspiration-analysis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.inspiration-analysis dt {
+  font-size: 12px;
+  color: #8e9fb9;
+  margin-bottom: 7px;
+}
+.inspiration-analysis dd {
+  margin: 0;
+  line-height: 1.6;
+}
+.inspiration-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #aebad0;
+}
+.inspiration-swatch i {
+  height: 30px;
+  width: 30px;
+  border-radius: 50%;
+  border: 1px solid #56647b;
+}
+.inspiration-prompt {
+  width: 100%;
+  min-height: 320px;
+  line-height: 1.7;
+  font-size: 13px;
+}
+.inspiration-ai-output {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.inspiration-library label {
+  display: grid;
+  gap: 7px;
+}
+.inspiration-library .check-row {
+  display: flex;
+}
+.inspiration-library .prompt-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .inspiration-grid,
+  .inspiration-analysis {
+    grid-template-columns: 1fr;
+  }
+  .inspiration-cover {
+    height: 210px;
+  }
+  .inspiration-filters label {
+    min-width: 130px;
+  }
+  .inspiration-library .section-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inspiration-card {
+    transition: none;
+  }
+  .inspiration-card:hover {
+    transform: none;
+  }
+}

@@ -87,7 +87,7 @@ export function store(): Store {
     if (!binding) throw new Error('Configure o binding D1 DB antes de iniciar.');
     return new D1Store(binding);
   }
-  if (!globalStore.caduStore || globalStore.caduSchema !== 4) {
+  if (!globalStore.caduStore || globalStore.caduSchema !== 5) {
     const old = globalStore.caduStore as (Store & { close?: () => void }) | undefined;
     old?.close?.();
     if (process.env.DATABASE_DRIVER === 'supabase') {
@@ -101,7 +101,7 @@ export function store(): Store {
         path.resolve(process.env.LOCAL_DATA_DIR || '.local', 'cadu.sqlite'),
       );
     }
-    globalStore.caduSchema = 4;
+    globalStore.caduSchema = 5;
   }
   return globalStore.caduStore;
 }

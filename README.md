@@ -35,16 +35,16 @@ Copie `.env.example` para `.env.local`, preencha somente as integrações necess
 
 ## Integrações
 
-| Integração | Configuração | Situação |
-|---|---|---|
-| CRM local e WhatsApp pessoal | Criar acesso, cadastrar empresa e autorização | Regras e fluxo HTTP testados |
-| Google Places | `GOOGLE_PLACES_API_KEY`, API New e faturamento | Consulta real validada com a chave local; 5 empresas em Bauru, 2 nichos |
-| Fontes complementares | `BRAVE_SEARCH_API_KEY` | Adaptador real; precisa da chave |
-| OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL` | Sem chave usa regras locais, explicitamente sem IA |
-| Supabase | Migração, driver, URL e secret key | Preparado; precisa do banco para teste real |
-| Meta opcional | `WHATSAPP_*`, webhook e template aprovado | Assinatura e regras testadas; nenhum envio real realizado |
-| Codex e prévias | Worker/provedor isolado e origem privada | Fila real; depende de infraestrutura e credenciais |
-| GitHub de clientes | Publicação manual após revisão | Sem publicação automática |
+| Integração                   | Configuração                                   | Situação                                                                |
+| ---------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| CRM local e WhatsApp pessoal | Criar acesso, cadastrar empresa e autorização  | Regras e fluxo HTTP testados                                            |
+| Google Places                | `GOOGLE_PLACES_API_KEY`, API New e faturamento | Consulta real validada com a chave local; 5 empresas em Bauru, 2 nichos |
+| Fontes complementares        | `BRAVE_SEARCH_API_KEY`                         | Adaptador real; precisa da chave                                        |
+| OpenAI                       | `OPENAI_API_KEY`, `OPENAI_MODEL`               | Sem chave usa regras locais, explicitamente sem IA                      |
+| Supabase                     | Migração, driver, URL e secret key             | Preparado; precisa do banco para teste real                             |
+| Meta opcional                | `WHATSAPP_*`, webhook e template aprovado      | Assinatura e regras testadas; nenhum envio real realizado               |
+| Codex e prévias              | Worker/provedor isolado e origem privada       | Fila real; depende de infraestrutura e credenciais                      |
+| GitHub de clientes           | Publicação manual após revisão                 | Sem publicação automática                                               |
 
 “Configurada” indica presença das variáveis, não validação de acesso. Consultas têm atribuição; o botão de prompt seleciona dados para um registro provisório, sempre `verified:false`. Antes de salvar ou publicar conteúdo, observe as permissões de uso e retenção do provedor. A idade de sites exige revisão manual.
 
@@ -91,3 +91,5 @@ A navegação principal reúne Visão geral, Encontrar empresas, Biblioteca, Con
 No gerador comercial, “Conferir contato” permite confirmar o número e registrar a evidência de autorização sem exigir a verificação de todos os dados da empresa. A caixa de revisão do texto sozinha não substitui a autorização. O botão informa exatamente o que falta. A empresa continua provisória para os outros campos; abrir WhatsApp não confirma envio.
 
 A biblioteca permite pesquisar e abrir empresas, editar os dados sem duplicação, acompanhar a etapa e excluir pelo fluxo de confirmação. Alterar o número invalida a autorização anterior. A persistência local permanece em `.local/cadu.sqlite`; atualizar a interface não apaga o banco.
+
+Biblioteca de referências reais: [guia de inspirações](docs/inspirations.md).

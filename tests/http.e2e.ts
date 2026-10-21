@@ -98,6 +98,37 @@ test(
         (await (await req('state')).json()).companies[0].notes,
         'Cliente fictício pediu retorno amanhã.',
       );
+      assert.equal(initial.inspirations.length, 6);
+      assert.equal(
+        (await fetch(base + '/inspirations', { headers: { Cookie: cookie } })).status,
+        200,
+      );
+      const collection = await (
+        await req('inspiration-collections', 'POST', { name: 'Teste HTTP' })
+      ).json();
+      assert.equal(
+        (
+          await req('inspirations/porsche', 'PATCH', {
+            favorite: true,
+            collectionIds: [collection.id],
+          })
+        ).status,
+        200,
+      );
+      const inspired = await (
+        await req('site-prompts/generate', 'POST', { companyId: c.id, inspirationId: 'porsche' })
+      ).json();
+      assert.match(inspired.text, /Cinematográfico/);
+      const inspiredSaved = await (
+        await req('site-prompts', 'POST', {
+          companyId: c.id,
+          inspirationId: 'porsche',
+          ...inspired,
+        })
+      ).json();
+      assert.ok(inspiredSaved.id);
+      assert.equal((await (await req('state')).json()).inspirationUses.length, 1);
+      // Keep the existing downstream assertions focused on the ordinary prompt flow.
       const commercial = await (
         await req('commercial/message', 'POST', { companyId: c.id, purpose: 'Primeira abordagem' })
       ).json();
@@ -105,7 +136,7 @@ test(
       assert.match(commercial.text, /Empresa fictícia/);
       const afterCommercial = await (await req('state')).json();
       assert.equal(afterCommercial.commercialMessages.length, 1);
-      assert.equal(afterCommercial.prompts.length, 0);
+      assert.equal(afterCommercial.prompts.length, 1);
       assert.equal(afterCommercial.companies[0].stage, 'Empresa encontrada');
       assert.equal(afterCommercial.contacts.length, 0);
       const savedMessage = await (
@@ -159,7 +190,7 @@ test(
       ).json();
       assert.equal(generated.method, 'template');
       assert.match(generated.text, /Bauru/);
-      assert.equal((await (await req('state')).json()).prompts.length, 0);
+      assert.equal((await (await req('state')).json()).prompts.length, 1);
       const prompt = await (
         await req('site-prompts', 'POST', { companyId: c.id, ...generated })
       ).json();
@@ -205,13 +236,14 @@ test(
       const state = await (await req('state')).json();
       assert.equal(state.companies[0].stage, 'Site em geração');
       assert.equal(state.tasks.length, 3);
-      assert.equal(state.prompts.length, 1);
+      assert.equal(state.prompts.length, 2);
       assert.equal(state.contactLedger, undefined);
       assert.equal((await req(`companies/${c.id}`, 'DELETE')).status, 200);
       const after = await (await req('state')).json();
       assert.equal(after.companies.length, 0);
       assert.equal(after.analyses.length, 0);
       assert.equal(after.prompts.length, 0);
+      assert.equal(after.inspirationUses.length, 0);
       assert.equal(after.commercialMessages.length, 0);
       assert.equal(
         after.metrics.contactsToday,

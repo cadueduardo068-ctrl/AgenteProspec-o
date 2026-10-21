@@ -6,6 +6,7 @@ import { request, type WorkspaceAction, type WorkspaceData } from './client-api'
 import Dialog from './dialog';
 export default function SitePromptEditor({
   company,
+  inspirationId: initialInspiration,
   data,
   close,
   action,
@@ -13,6 +14,7 @@ export default function SitePromptEditor({
   busy,
 }: {
   company: Company;
+  inspirationId?: string;
   data: WorkspaceData;
   close: () => void;
   action: WorkspaceAction;
@@ -23,6 +25,10 @@ export default function SitePromptEditor({
     .filter((p) => p.companyId === company.id)
     .slice()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const [inspirationId, setInspirationId] = useState(
+    initialInspiration || history[0]?.inspirationId,
+  );
+  const [generatedInspiration, setGeneratedInspiration] = useState(history[0]?.inspirationId);
   const [text, setText] = useState(history[0]?.text || '');
   const [method, setMethod] = useState<'template' | 'openai'>(history[0]?.method || 'template');
   const [plan, setPlan] = useState<SitePrompt['plan']>(history[0]?.plan || 'landing page');
@@ -37,8 +43,9 @@ export default function SitePromptEditor({
         text: string;
         method: 'template' | 'openai';
         plan: SitePrompt['plan'];
-      }>('site-prompts/generate', 'POST', { companyId: company.id });
+      }>('site-prompts/generate', 'POST', { companyId: company.id, inspirationId });
       setText(result.text);
+      setGeneratedInspiration(inspirationId);
       setMethod(result.method);
       setPlan(result.plan);
       setId(undefined);
@@ -52,14 +59,21 @@ export default function SitePromptEditor({
   useEffect(() => {
     if (!once.current) {
       once.current = true;
-      if (!history.length) void generate();
+      if (!history.length || initialInspiration) void generate();
     }
   }, []);
   async function save() {
     const result = await action(
       'site-prompts',
       'POST',
-      { companyId: company.id, text, method, plan, ...(id ? { id } : {}) },
+      {
+        companyId: company.id,
+        text,
+        method,
+        plan,
+        inspirationId: generatedInspiration,
+        ...(id ? { id } : {}),
+      },
       'Prompt salvo no histórico da empresa.',
     );
     if (result?.id) {
@@ -117,6 +131,21 @@ export default function SitePromptEditor({
             ))}
           </dl>
         </section>
+        <label>
+          Inspiração visual
+          <select
+            value={inspirationId || ''}
+            onChange={(e) => setInspirationId(e.target.value || undefined)}
+          >
+            <option value="">Direção do nicho, sem referência</option>
+            {data.inspirations.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <small className="muted">Após trocar, regenere o prompt para aplicar o design.</small>
+        </label>
         <div className="prompt-toolbar">
           <div>
             <span className="badge blue">{plan}</span>
@@ -232,6 +261,8 @@ export default function SitePromptEditor({
                 setText(p.text);
                 setPlan(p.plan);
                 setMethod(p.method);
+                setInspirationId(p.inspirationId);
+                setGeneratedInspiration(p.inspirationId);
               }}
             >
               <Sparkles size={15} />

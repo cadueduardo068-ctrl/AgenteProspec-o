@@ -150,9 +150,26 @@ test(
         await req('commercial/message', 'POST', { companyId: c.id, purpose: 'Primeiro contato' })
       ).json();
       assert.match(message.text, /Empresa Cloudflare/);
-      const prompt = await (await req('site-prompts/generate', 'POST', { companyId: c.id })).json();
-      await req('site-prompts', 'POST', { companyId: c.id, ...prompt });
-      for (const route of ['/', '/library', '/prospect', '/conversations', `/companies/${c.id}`])
+      const collection = await (
+        await req('inspiration-collections', 'POST', { name: 'Referências do teste' })
+      ).json();
+      await req('inspirations/porsche', 'PATCH', {
+        favorite: true,
+        collectionIds: [collection.id],
+      });
+      const prompt = await (
+        await req('site-prompts/generate', 'POST', { companyId: c.id, inspirationId: 'porsche' })
+      ).json();
+      assert.match(prompt.text, /Cinematográfico/);
+      await req('site-prompts', 'POST', { companyId: c.id, inspirationId: 'porsche', ...prompt });
+      for (const route of [
+        '/',
+        '/library',
+        '/inspirations',
+        '/prospect',
+        '/conversations',
+        `/companies/${c.id}`,
+      ])
         assert.equal(
           (await fetch(base + route, { headers: { Cookie: cookie } })).status,
           200,
@@ -175,6 +192,12 @@ test(
       assert.equal(state.companies[0].id, c.id);
       assert.equal(state.commercialMessages.length, 1);
       assert.equal(state.prompts.length, 1);
+      assert.equal(state.inspirationUses.length, 1);
+      assert.equal(state.inspirationCollections.length, 1);
+      assert.equal(
+        state.inspirations.find((r: { id: string }) => r.id === 'porsche').favorite,
+        true,
+      );
       assert.equal(state.contacts[0].status, 'aberto');
       assert.equal(state.integrations.database.label, 'Cloudflare D1');
     } finally {

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import {
   MessageCircle,
+  Sparkles,
   Code2,
   ArrowUpRight,
   MapPin,
@@ -23,7 +24,7 @@ export type PlaceResult = {
   prospectNiche?: string;
   attributions?: { provider: string; providerUri: string }[];
 };
-export type ResultAction = 'whatsapp' | 'prompt' | 'details';
+export type ResultAction = 'whatsapp' | 'prompt' | 'details' | 'inspiration';
 export default function ResultCards({
   places,
   city,
@@ -132,6 +133,17 @@ export default function ResultCards({
           >
             <Code2 size={14} />
             Gerar prompt do site
+          </button>
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              setDetail(null);
+              onAction(p, 'inspiration');
+            }}
+          >
+            <Sparkles size={14} />
+            Escolher inspiração para o site
           </button>
           <button className="text-btn" onClick={() => setDetail(p)}>
             Ver detalhes

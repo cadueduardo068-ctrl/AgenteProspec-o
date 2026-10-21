@@ -1,3 +1,4 @@
+import { inspirationPrompt } from './inspirations';
 import { z } from 'zod';
 import { getCompany } from './crm';
 import { event, websitePresence, type Company, type State, type SitePrompt } from './domain';
@@ -99,10 +100,17 @@ Não publicar em produção nem compartilhar com o cliente automaticamente. Agua
 `;
 }
 export async function generateSitePrompt(db: Store, input: unknown) {
-  const data = z.object({ companyId: z.string().uuid() }).parse(input);
-  const c = getCompany(await db.read(), data.companyId);
+  const data = z
+    .object({ companyId: z.string().uuid(), inspirationId: z.string().max(100).optional() })
+    .parse(input);
+  const state = await db.read();
+  const c = getCompany(state, data.companyId);
+  const reference = data.inspirationId
+    ? state.inspirations.find((r) => r.id === data.inspirationId)
+    : undefined;
+  if (data.inspirationId && !reference) throw new Error('Inspiração não encontrada.');
   if (c.optedOut || c.archived) throw new Error('Empresa bloqueada ou arquivada.');
-  const base = buildSitePrompt(c);
+  const base = buildSitePrompt(c) + (reference ? '\n\n' + inspirationPrompt(reference) : '');
   const method = process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL ? 'openai' : 'template';
   const text =
     method === 'openai'
@@ -124,20 +132,33 @@ export function saveSitePrompt(s: State, input: unknown) {
       method: z.enum(['template', 'openai']),
       plan: z.enum(['landing page', 'site institucional']),
       id: z.string().uuid().optional(),
+      inspirationId: z.string().max(100).optional(),
     })
     .parse(input);
   const c = getCompany(s, data.companyId);
   if (c.optedOut) throw new Error('Contato bloqueado.');
+  if (data.inspirationId && !s.inspirations.some((r) => r.id === data.inspirationId))
+    throw new Error('Inspiração não encontrada.');
   const now = new Date().toISOString();
   let prompt = data.id
     ? s.prompts.find((p) => p.id === data.id && p.companyId === c.id)
     : undefined;
   if (data.id && !prompt) throw new Error('Prompt não encontrado.');
-  if (prompt?.text === data.text) return prompt;
-  const identical = s.prompts.find((p) => p.companyId === c.id && p.text === data.text);
+  if (prompt?.text === data.text && prompt.inspirationId === data.inspirationId) return prompt;
+  const identical = s.prompts.find(
+    (p) => p.companyId === c.id && p.text === data.text && p.inspirationId === data.inspirationId,
+  );
   if (identical) return identical;
   prompt = { ...data, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
   s.prompts.push(prompt);
+  if (data.inspirationId)
+    s.inspirationUses.unshift({
+      id: crypto.randomUUID(),
+      inspirationId: data.inspirationId,
+      companyId: c.id,
+      promptId: prompt.id,
+      at: now,
+    });
   event(s, `${c.name}: prompt personalizado salvo no histórico`, c.id, 'revisão do administrador');
   return prompt;
 }

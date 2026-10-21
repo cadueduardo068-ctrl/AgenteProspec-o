@@ -69,6 +69,7 @@ import NicheSelector from './niche-selector';
 import CitySelector from './city-selector';
 import ContactComposer from './contact-composer';
 import SitePromptEditor from './site-prompt-editor';
+import InspirationLibrary from './inspiration-library';
 import CompanyProfile from './company-profile';
 import CompanyEditor from './company-editor';
 import ContactedCompanies from './contacted-companies';
@@ -98,6 +99,7 @@ const nav = [
   { id: 'contacted', title: 'Conversas', icon: Users },
   { id: 'assistant', title: 'Assistente Comercial', icon: MessagesSquare },
   { id: 'sites', title: 'Prévias de sites', icon: PanelsTopLeft },
+  { id: 'inspirations', title: 'Inspirações', icon: Sparkles },
   { id: 'funnel', title: 'Funil de vendas', icon: GitBranch },
   { id: 'reports', title: 'Relatórios', icon: ChartNoAxesCombined },
   { id: 'settings', title: 'Configurações', icon: Settings },
@@ -226,6 +228,8 @@ export default function Dashboard({
   const [verification, setVerification] = useState<Company | null>(null);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [composeId, setComposeId] = useState<string | null>(null);
+  const [inspirationCompany, setInspirationCompany] = useState<string | undefined>();
+  const [promptInspiration, setPromptInspiration] = useState<string | undefined>();
   const [promptId, setPromptId] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [noSite, setNoSite] = useState(false);
@@ -278,6 +282,7 @@ export default function Dashboard({
     }
   }
   function navigate(id: string) {
+    window.scrollTo(0, 0);
     setTab(id);
     setSelected(null);
     window.history.pushState({}, '', sectionRoutes[id] || '/');
@@ -551,8 +556,13 @@ export default function Dashboard({
                       }}
                       onCompanyAction={(id, mode) => {
                         if (mode === 'whatsapp') setComposeId(id);
-                        else if (mode === 'prompt') setPromptId(id);
-                        else select(id);
+                        else if (mode === 'prompt') {
+                          setPromptInspiration(undefined);
+                          setPromptId(id);
+                        } else if (mode === 'inspiration') {
+                          setInspirationCompany(id);
+                          navigate('inspirations');
+                        } else select(id);
                       }}
                       onAdd={() => setAdd(true)}
                       notify={setToast}
@@ -731,6 +741,20 @@ export default function Dashboard({
                   {tab === 'sites' && (
                     <Sites data={data} action={action} select={select} busy={busy} />
                   )}
+                  {tab === 'inspirations' && (
+                    <InspirationLibrary
+                      key={inspirationCompany || 'all'}
+                      data={data}
+                      action={action}
+                      notify={setToast}
+                      busy={busy}
+                      companyId={inspirationCompany}
+                      onChoose={(id, ref) => {
+                        setPromptInspiration(ref);
+                        setPromptId(id);
+                      }}
+                    />
+                  )}
                   {tab === 'reports' && <Reports data={data} notify={setToast} />}
                   {tab === 'settings' && <SettingsPanel data={data} action={action} busy={busy} />}
                 </>
@@ -801,10 +825,14 @@ export default function Dashboard({
       )}
       {data && promptId && data.companies.find((c) => c.id === promptId) && (
         <SitePromptEditor
-          key={`prompt-${promptId}`}
+          key={`prompt-${promptId}-${promptInspiration || 'none'}`}
+          inspirationId={promptInspiration}
           company={data.companies.find((c) => c.id === promptId)!}
           data={data}
-          close={() => setPromptId(null)}
+          close={() => {
+            setPromptId(null);
+            setPromptInspiration(undefined);
+          }}
           action={action}
           busy={busy}
           notify={setToast}
@@ -823,7 +851,15 @@ export default function Dashboard({
           busy={busy}
           notify={setToast}
           compose={() => setComposeId(company.id)}
-          prompt={() => setPromptId(company.id)}
+          prompt={() => {
+            setPromptInspiration(undefined);
+            setPromptId(company.id);
+          }}
+          inspiration={() => {
+            setInspirationCompany(company.id);
+            select(null);
+            navigate('inspirations');
+          }}
         />
       )}
       {showActivity && (
@@ -1327,7 +1363,7 @@ function Prospect({
                 const existing = companies.find((c) => c.placeId === place.id);
                 if (existing && (mode !== 'details' || existing.verified))
                   onCompanyAction(existing.id, mode);
-                else if (mode === 'prompt' || mode === 'whatsapp') {
+                else if (mode === 'prompt' || mode === 'whatsapp' || mode === 'inspiration') {
                   setBusy(true);
                   void createProvisional({
                     placeId: place.id,

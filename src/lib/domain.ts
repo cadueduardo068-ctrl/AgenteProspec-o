@@ -1,3 +1,9 @@
+import {
+  curatedInspirations,
+  type Inspiration,
+  type InspirationCollection,
+  type InspirationUse,
+} from './inspirations';
 export const stages = [
   'Empresa encontrada',
   'Oportunidade qualificada',
@@ -120,6 +126,9 @@ export type Analysis = {
   rawText?: string;
 };
 export type State = {
+  inspirations: Inspiration[];
+  inspirationCollections: InspirationCollection[];
+  inspirationUses: InspirationUse[];
   commercialMessages: CommercialMessage[];
   prompts: SitePrompt[];
   recentCities: { id: number; name: string; uf: string }[];
@@ -150,6 +159,9 @@ export type State = {
   rateLimits: Record<string, { start: number; count: number }>;
 };
 export const initialState = (): State => ({
+  inspirations: curatedInspirations(),
+  inspirationCollections: [],
+  inspirationUses: [],
   commercialMessages: [],
   prompts: [],
   recentCities: [],
@@ -174,6 +186,7 @@ export const initialState = (): State => ({
   rateLimits: {},
 });
 export type SitePrompt = {
+  inspirationId?: string;
   id: string;
   companyId: string;
   text: string;

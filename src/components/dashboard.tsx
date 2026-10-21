@@ -204,6 +204,7 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
     return () => window.removeEventListener('popstate', update);
   }, []);
   const [add, setAdd] = useState(false);
+  const [verification, setVerification] = useState<Company | null>(null);
   const [composeId, setComposeId] = useState<string | null>(null);
   const [promptId, setPromptId] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
@@ -480,6 +481,15 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
                       ready={data.integrations.places.configured}
                       recentCities={data.recentCities}
                       companies={data.companies}
+                      createProvisional={async (input) => {
+                        const result = await action(
+                          'companies/provisional',
+                          'POST',
+                          input,
+                          'Gerador aberto com dados não verificados.',
+                        );
+                        return result?.id ? String(result.id) : null;
+                      }}
                       createCompany={async (input) => {
                         const result = await action(
                           'companies',
@@ -693,12 +703,19 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
           </button>
         </div>
       )}
-      {add && (
+      {(add || verification) && (
         <CompanyForm
-          close={() => setAdd(false)}
+          initial={verification || undefined}
+          close={() => {
+            setAdd(false);
+            setVerification(null);
+          }}
           save={async (body) => {
             const res = await action('companies', 'POST', body, 'Empresa cadastrada no CRM.');
-            if (res) setAdd(false);
+            if (res) {
+              setAdd(false);
+              setVerification(null);
+            }
           }}
           busy={busy}
         />
@@ -729,6 +746,7 @@ export default function Dashboard({ initialCompanyId }: { initialCompanyId?: str
         <CompanyProfile
           key={`profile-${company.id}`}
           company={company}
+          verify={() => setVerification(company)}
           data={data}
           refresh={refresh}
           close={() => select(null)}
@@ -1209,6 +1227,7 @@ function Companies({ companies, select }: { companies: Company[]; select: (v: st
               </Badge>
             </div>
             <h3>{c.name}</h3>
+            {!c.verified && <Badge>Provisório · não verificado</Badge>}
             <p>
               {c.niche} · {c.city}, {c.state}
             </p>
@@ -1233,6 +1252,7 @@ function Prospect({
   recentCities,
   companies,
   createCompany,
+  createProvisional,
   onCompanyAction,
   onAdd,
   notify,
@@ -1242,6 +1262,7 @@ function Prospect({
   recentCities: Municipality[];
   companies: Company[];
   createCompany: (input: unknown) => Promise<string | null>;
+  createProvisional: (input: unknown) => Promise<string | null>;
   onCompanyAction: (id: string, mode: ResultAction) => void;
   onAdd: () => void;
   notify: (s: string) => void;
@@ -1375,7 +1396,7 @@ function Prospect({
                 <Check size={15} />
                 Verificação em fontes independentes
               </li>
-              <CheckItem>Dados do Google sem armazenamento permanente</CheckItem>
+              <CheckItem>Rascunhos com dados não verificados identificados</CheckItem>
               <CheckItem>Contato apenas com autorização</CheckItem>
             </ul>
           </section>
@@ -1430,8 +1451,26 @@ function Prospect({
               verify={verify}
               onAction={(place, mode) => {
                 const existing = companies.find((c) => c.placeId === place.id);
-                if (existing) onCompanyAction(existing.id, mode);
-                else setCandidate({ place, mode });
+                if (existing && (mode === 'prompt' || existing.verified))
+                  onCompanyAction(existing.id, mode);
+                else if (mode === 'prompt') {
+                  setBusy(true);
+                  void createProvisional({
+                    placeId: place.id,
+                    name: place.displayName?.text || '',
+                    niche: place.prospectNiche || niches[0] || '',
+                    city,
+                    state,
+                    phone: place.internationalPhoneNumber || '',
+                    address: place.formattedAddress || '',
+                    website: place.websiteUri || '',
+                    source: place.googleMapsUri || '',
+                  })
+                    .then((id) => {
+                      if (id) onCompanyAction(id, 'prompt');
+                    })
+                    .finally(() => setBusy(false));
+                } else setCandidate({ place, mode });
               }}
             />
           )}

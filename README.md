@@ -44,7 +44,9 @@ Copie `.env.example` para `.env.local`, preencha somente as integrações necess
 | Codex e prévias | Worker/provedor isolado e origem privada | Fila real; depende de infraestrutura e credenciais |
 | GitHub de clientes | Publicação manual após revisão | Sem publicação automática |
 
-“Configurada” indica presença das variáveis, não validação de acesso. Resultados Google são temporários, com atribuição. O CRM guarda Place ID e dados verificados independentemente; não copie conteúdo do Places para armazenamento permanente. A idade de sites exige revisão manual.
+“Configurada” indica presença das variáveis, não validação de acesso. Consultas têm atribuição; o botão de prompt seleciona dados para um registro provisório, sempre `verified:false`. Antes de salvar ou publicar conteúdo, observe as permissões de uso e retenção do provedor. A idade de sites exige revisão manual.
+
+O gerador abre diretamente e prepara o rascunho sem exigir cadastro verificado, telefone, endereço, site ou fonte. O resumo distingue dados pendentes e confirmados. Sem configuração OpenAI, utiliza briefing local personalizado e informa “sem IA”. Copiar, editar, regenerar e salvar no CRM são ações independentes. Cada edição salva cria uma versão com data e vínculo à mesma empresa; Place ID impede duplicação. “Verificar informações” no perfil mantém o ID e todo o histórico. Telefones observados não habilitam WhatsApp no briefing nem autorização de contato.
 
 No fluxo dos cards, uma empresa ainda não cadastrada passa por revisão e confirmação de fonte independente antes de ser salva. O telefone é normalizado para Brasil sem inventar DDD ou nono dígito; número ausente ou ambíguo desabilita o WhatsApp. Acompanhamentos de contatos já confirmados não consomem uma nova vaga de primeiro contato.
 

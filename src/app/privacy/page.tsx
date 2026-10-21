@@ -19,8 +19,11 @@ export default function Privacy() {
       <p>
         Consultas podem ser enviadas ao Google Places e Brave Search. Quando configurado, o provedor
         OpenAI recebe os trechos selecionados para análise; o pedido usa store=false. A retenção
-        contratual do provedor deve ser verificada pelo administrador. Resultados Google Places são
-        temporários e não são gravados no CRM.{' '}
+        contratual do provedor deve ser verificada pelo administrador. As consultas permanecem
+        temporárias; ao solicitar um prompt, os dados selecionados são associados a um registro
+        provisório não verificado. Prompts salvos mantêm versões até a exclusão do cadastro. O
+        administrador deve observar as permissões de uso e retenção da fonte antes de salvar ou
+        publicar conteúdo.{' '}
         <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">
           Política de Privacidade do Google
         </a>

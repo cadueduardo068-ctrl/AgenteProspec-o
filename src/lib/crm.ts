@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { event, stages, type Company, type State } from './domain';
-import { brazilianPhone } from './phones';
+import { brazilianPhone, whatsappPhone } from './phones';
+const samePhone = (a: string, b: string) => {
+  const first = whatsappPhone(a).phone;
+  return !!first && first === whatsappPhone(b).phone;
+};
 const url = z
   .string()
   .max(1000)
@@ -24,9 +28,21 @@ export const companySchema = z.object({
 });
 export function addCompany(s: State, input: unknown) {
   const data = companySchema.parse(input);
+  const provisional =
+    data.placeId && s.companies.find((c) => c.placeId === data.placeId && !c.verified);
+  if (provisional) {
+    if (
+      data.phone &&
+      s.companies.some((c) => c.id !== provisional.id && samePhone(c.phone, data.phone))
+    )
+      throw new Error('Telefone associado a outra empresa.');
+    Object.assign(provisional, data, { updatedAt: new Date().toISOString() });
+    event(s, `${provisional.name}: informações verificadas pelo administrador`, provisional.id);
+    return provisional;
+  }
   if (
     s.companies.some(
-      (c) => (data.placeId && c.placeId === data.placeId) || (data.phone && c.phone === data.phone),
+      (c) => (data.placeId && c.placeId === data.placeId) || samePhone(c.phone, data.phone),
     )
   )
     throw new Error('Empresa já cadastrada.');
@@ -43,6 +59,43 @@ export function addCompany(s: State, input: unknown) {
   s.companies.push(company);
   event(s, `${company.name} adicionada ao CRM`, company.id);
   return company;
+}
+/** A draft is deliberately independent from the verified registration schema. */
+export function provisionalCompany(s: State, input: unknown) {
+  const data = z
+    .object({
+      placeId: z.string().trim().min(1).max(300),
+      name: z.string().trim().max(160).default(''),
+      niche: z.string().trim().max(100).default(''),
+      city: z.string().trim().max(100).default(''),
+      state: z.string().max(2).default(''),
+      phone: z.string().max(30).default(''),
+      address: z.string().max(1000).default(''),
+      website: url.default(''),
+      source: url.default(''),
+    })
+    .parse(input);
+  const existing = s.companies.find(
+    (c) => c.placeId === data.placeId || samePhone(c.phone, data.phone),
+  );
+  if (existing) return existing;
+  const now = new Date().toISOString();
+  const c: Company = {
+    ...data,
+    name: data.name || 'Empresa sem nome confirmado',
+    id: crypto.randomUUID(),
+    verified: false,
+    services: '',
+    notes: '',
+    stage: 'Empresa encontrada',
+    createdAt: now,
+    updatedAt: now,
+    optedOut: false,
+    human: false,
+  };
+  s.companies.push(c);
+  event(s, `${c.name}: registro provisório, dados não verificados`, c.id);
+  return c;
 }
 export function getCompany(s: State, id: string) {
   const c = s.companies.find((c) => c.id === id);
@@ -100,6 +153,10 @@ export function grantConsent(s: State, id: string, input: unknown) {
     .object({ evidence: z.string().trim().min(15).max(2000), confirmed: z.literal(true) })
     .parse(input);
   const c = getCompany(s, id);
+  if (!c.verified)
+    throw new Error(
+      'Verifique as informações antes de autorizar contato. O prompt pode ser gerado sem verificação.',
+    );
   if (!c.phone || c.optedOut || s.exclusions.includes(c.phone))
     throw new Error('Contato ausente ou na lista permanente de exclusão.');
   c.consent = { at: new Date().toISOString(), evidence: data.evidence, phone: c.phone };

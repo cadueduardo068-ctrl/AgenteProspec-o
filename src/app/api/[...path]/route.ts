@@ -12,6 +12,7 @@ import {
 import { store } from '@/lib/store';
 import {
   addCompany,
+  provisionalCompany,
   getCompany,
   updateCompany,
   grantConsent,
@@ -104,6 +105,10 @@ async function handle(req: NextRequest, context: { params: Promise<{ path: strin
       void rateLimits;
       void contactLedger;
       return json({ ...safe, metrics: metrics(state), integrations: integrations() });
+    }
+    if (route === 'companies/provisional' && method === 'POST') {
+      const input = await body(req);
+      return json(await db.mutate((s) => provisionalCompany(s, input)), 201);
     }
     if (route === 'companies' && method === 'POST') {
       const input = await body(req);

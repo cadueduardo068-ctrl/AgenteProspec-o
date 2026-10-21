@@ -3301,3 +3301,52 @@ td {
 .sidebar-scrim {
   z-index: 55;
 }
+.prompt-company-summary {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(66, 136, 255, 0.1), transparent);
+}
+.prompt-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  margin: 20px 0 0;
+}
+.prompt-facts dt {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.prompt-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.prompt-facts small {
+  display: block;
+  opacity: 0.65;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.prompt-textarea[readonly] {
+  cursor: text;
+}
+@media (max-width: 600px) {
+  .prompt-facts {
+    grid-template-columns: 1fr;
+  }
+  .prompt-company-summary {
+    padding: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .prompt-company-summary .section-heading {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .prompt-company-summary .section-heading h3 {
+    flex-basis: 100%;
+  }
+}

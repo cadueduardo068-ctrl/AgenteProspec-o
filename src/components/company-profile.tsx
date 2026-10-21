@@ -34,6 +34,7 @@ export default function CompanyProfile({
   busy,
   compose,
   prompt,
+  verify,
 }: {
   company: Company;
   data: WorkspaceData;
@@ -44,6 +45,7 @@ export default function CompanyProfile({
   busy: boolean;
   compose: () => void;
   prompt: () => void;
+  verify: () => void;
 }) {
   const [notes, setNotes] = useState(c.notes);
   const saved = useRef(c.notes);
@@ -169,7 +171,11 @@ export default function CompanyProfile({
         <div className="detail-identity">
           <span className="company-initial large">{c.name.slice(0, 2).toUpperCase()}</span>
           <div>
-            <span className="eyebrow">PERFIL COMERCIAL</span>
+            <span className="eyebrow">
+              {c.verified
+                ? 'PERFIL COMERCIAL · VERIFICADO'
+                : 'REGISTRO PROVISÓRIO · DADOS NÃO VERIFICADOS'}
+            </span>
             <h1>{c.name}</h1>
             <p>
               {c.niche} · {c.city}, {c.state}
@@ -190,6 +196,12 @@ export default function CompanyProfile({
             <Sparkles size={16} />
             Gerar prompt do site
           </button>
+          {!c.verified && (
+            <button className="btn" onClick={verify}>
+              <ShieldCheck size={15} />
+              Verificar informações
+            </button>
+          )}
         </div>
       </header>
       <div className="profile-summary-strip">
@@ -272,7 +284,11 @@ export default function CompanyProfile({
               </p>
               <p>
                 <Phone size={15} />
-                {c.phone ? `+${c.phone}` : 'Telefone desconhecido'}
+                {c.phone
+                  ? c.phone.startsWith('+')
+                    ? c.phone
+                    : `+${c.phone}`
+                  : 'Telefone desconhecido'}
               </p>
               <p>
                 <Globe size={15} />
@@ -287,10 +303,14 @@ export default function CompanyProfile({
               </p>
               <p>
                 <ShieldCheck size={15} />
-                <a href={c.source} target="_blank" rel="noreferrer">
-                  Fonte de verificação
-                  <ExternalLink size={12} />
-                </a>
+                {c.source ? (
+                  <a href={c.source} target="_blank" rel="noreferrer">
+                    {c.verified ? 'Fonte de verificação' : 'Fonte observada · não verificada'}
+                    <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  'Fonte não informada · registro provisório'
+                )}
               </p>
             </div>
             <label>

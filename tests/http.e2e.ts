@@ -218,6 +218,41 @@ test(
       });
       await req('manual/prepare', 'POST', { companyId: second.id });
       assert.equal((await req('manual/open', 'POST', { companyId: second.id })).status, 400);
+      const provisional = await (
+        await req('companies/provisional', 'POST', {
+          placeId: 'http-provisional',
+          name: 'Empresa incompleta de teste',
+          niche: 'Oficina',
+        })
+      ).json();
+      assert.equal(provisional.verified, false);
+      const again = await (
+        await req('companies/provisional', 'POST', { placeId: 'http-provisional' })
+      ).json();
+      assert.equal(again.id, provisional.id);
+      const draft = await (
+        await req('site-prompts/generate', 'POST', { companyId: provisional.id })
+      ).json();
+      assert.match(draft.text, /PROVISÓRIOS, NÃO CONFIRMADOS/);
+      assert.doesNotMatch(draft.text, /https:\/\/wa.me\//);
+      const savedDraft = await (
+        await req('site-prompts', 'POST', { companyId: provisional.id, ...draft })
+      ).json();
+      const reopened = await (await req('state')).json();
+      assert.equal(
+        reopened.prompts.find((p: { id: string }) => p.id === savedDraft.id).text,
+        draft.text.trim(),
+      );
+      assert.equal(
+        reopened.companies.filter((c: { placeId: string }) => c.placeId === 'http-provisional')
+          .length,
+        1,
+      );
+      assert.equal(
+        (await fetch(`${base}/companies/${provisional.id}`, { headers: { Cookie: cookie } }))
+          .status,
+        200,
+      );
     } finally {
       if (process.platform === 'win32')
         await new Promise<void>((resolve) => {

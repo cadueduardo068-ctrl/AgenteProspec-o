@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Clipboard, Save, RefreshCw, Play, History, Loader2 } from 'lucide-react';
+import { Sparkles, Clipboard, Save, RefreshCw, Play, History, Loader2, Pencil } from 'lucide-react';
 import type { Company, SitePrompt } from '@/lib/domain';
 import { request, type WorkspaceAction, type WorkspaceData } from './client-api';
 import Dialog from './dialog';
@@ -28,6 +28,7 @@ export default function SitePromptEditor({
   const [plan, setPlan] = useState<SitePrompt['plan']>(history[0]?.plan || 'landing page');
   const [id, setId] = useState<string | undefined>(history[0]?.id);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
   const once = useRef(false);
   async function generate() {
     setLoading(true);
@@ -41,6 +42,7 @@ export default function SitePromptEditor({
       setMethod(result.method);
       setPlan(result.plan);
       setId(undefined);
+      setEditing(false);
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -69,8 +71,50 @@ export default function SitePromptEditor({
   const saved = data.prompts.find((p) => p.id === id);
   const edited = saved && saved.text !== text;
   return (
-    <Dialog title={`Prompt do site · ${company.name}`} close={close} wide>
+    <Dialog title="Gerar site com IA" close={close} wide>
       <div className="stack">
+        <section className="prompt-company-summary">
+          <div className="section-heading">
+            <h3>{company.name}</h3>
+            <span className={`badge ${company.verified ? 'green' : ''}`}>
+              {company.verified ? 'Cadastro verificado' : 'Registro provisório · não verificado'}
+            </span>
+          </div>
+          <p className="muted">
+            O rascunho usa os dados disponíveis. Campos ausentes continuam como pendências.
+          </p>
+          <dl className="prompt-facts">
+            {Object.entries({
+              Segmento: company.niche,
+              Localização: [company.city, company.state].filter(Boolean).join(' / '),
+              Endereço: company.address,
+              Telefone: company.phone,
+              Site: company.website,
+              Serviços: company.services,
+              Fonte: company.source,
+            }).map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>
+                  {label === 'Fonte' && value ? (
+                    <a href={value} target="_blank" rel="noreferrer">
+                      Consultar fonte observada
+                    </a>
+                  ) : (
+                    value || 'Não informado'
+                  )}
+                  <small>
+                    {value
+                      ? company.verified
+                        ? 'Confirmado pelo administrador'
+                        : 'Não confirmado'
+                      : 'Pendente · não bloqueia a geração'}
+                  </small>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
         <div className="prompt-toolbar">
           <div>
             <span className="badge blue">{plan}</span>
@@ -78,27 +122,32 @@ export default function SitePromptEditor({
               {method === 'openai' ? 'Refinado com IA' : 'Briefing estruturado · sem IA'}
             </span>
           </div>
-          <button className="btn" disabled={loading || busy} onClick={() => void generate()}>
-            <RefreshCw size={14} />
-            Regenerar prompt
+          <button
+            className="btn primary"
+            disabled={loading || busy}
+            onClick={() => void generate()}
+          >
+            <Sparkles size={14} />
+            Gerar prompt com IA
           </button>
         </div>
         <p className="muted">
-          Briefing baseado nos dados verificados. Informações ausentes aparecem como pendências;
-          público e direção visual são sugestões para revisão.
+          Briefing com o estado de verificação de cada empresa. Informações ausentes aparecem como
+          pendências; público e direção visual são sugestões para revisão.
         </p>
         {loading ? (
-          <div className="prompt-loading">
+          <div className="prompt-loading" role="status" aria-live="polite">
             <Loader2 className="spin" size={24} />
             <p>Preparando um briefing específico para {company.name}…</p>
           </div>
         ) : (
           <label>
-            Visualizar e editar prompt
+            {editing ? 'Editar prompt' : 'Prompt completo para o Codex'}
             <textarea
               className="prompt-textarea"
               aria-label="Prompt personalizado do site"
               value={text}
+              readOnly={!editing}
               maxLength={30000}
               onChange={(e) => setText(e.target.value)}
               spellCheck={false}
@@ -106,6 +155,22 @@ export default function SitePromptEditor({
           </label>
         )}
         <div className="button-row">
+          <button
+            className="btn"
+            disabled={loading || busy || !text}
+            onClick={() => void generate()}
+          >
+            <RefreshCw size={15} />
+            Regenerar
+          </button>
+          <button
+            className="btn"
+            disabled={!text || loading}
+            onClick={() => setEditing((value) => !value)}
+          >
+            <Pencil size={15} />
+            {editing ? 'Concluir edição' : 'Editar'}
+          </button>
           <button
             className="btn"
             disabled={!text || loading}
@@ -127,7 +192,7 @@ export default function SitePromptEditor({
             onClick={() => void save()}
           >
             <Save size={15} />
-            Salvar no histórico
+            Salvar no CRM
           </button>
           <button
             className="btn"
